@@ -3,41 +3,45 @@ package main
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/widget"
 	"log"
 	"os"
 )
 
 type Config struct {
-	App        fyne.App
-	InfoLog    *log.Logger
-	ErrorLog   *log.Logger
-	MainWindow fyne.Window
-	statusLine *fyne.Container
+	App             fyne.App
+	InfoLog         *log.Logger
+	ErrorLog        *log.Logger
+	MainWindow      fyne.Window
+	statusLine      *fyne.Container
+	latitudeStatus  *canvas.Text
+	longitudeStatus *canvas.Text
+	dateTimeStatus  *canvas.Text
+	textOut         *widget.Label
 }
 
-func main() {
-	var myApp Config
+var myWin Config
 
-	// create a fyne application
-	fyneApp := app.New()
-	myApp.App = fyneApp
+func main() {
+
+	initializeStartingWindow(&myWin)
 
 	// create our loggers
-	myApp.InfoLog = log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
-	myApp.ErrorLog = log.New(os.Stdout, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
+	myWin.InfoLog = log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
+	myWin.ErrorLog = log.New(os.Stdout, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
 
-	// open a connection to the database
-
-	// create a database repository
-
-	// create and size and center a fyne window
-	myApp.MainWindow = fyneApp.NewWindow("IOTA GFT app")
-	myApp.MainWindow.Resize(fyne.Size{Height: 600, Width: 900})
-	myApp.MainWindow.SetMaster() // As 'master', if the window is closed, the application quits.
-	myApp.MainWindow.CenterOnScreen()
-
-	myApp.makeUI()
+	myWin.makeUI()
 
 	// show and run the application
-	myApp.MainWindow.ShowAndRun()
+	myWin.MainWindow.ShowAndRun()
+}
+
+func initializeStartingWindow(myWin *Config) {
+	myWin.App = app.New()
+	myWin.MainWindow = myWin.App.NewWindow("IOTA GFT app")
+	myWin.MainWindow.Resize(fyne.Size{Height: 600, Width: 900})
+	myWin.MainWindow.SetMaster() // As 'master', if the window is closed, the application quits.
+	myWin.MainWindow.CenterOnScreen()
+	myWin.makeUI()
 }

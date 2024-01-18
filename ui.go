@@ -1,25 +1,29 @@
 package main
 
 import (
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
+	"fmt"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/widget"
 )
 
 func (app *Config) makeUI() {
 
-	// Make statusLine
-	latitude := canvas.NewText("Latitude", nil)
-	latitude.Alignment = fyne.TextAlignLeading
-	longitude := canvas.NewText("Longitude", nil)
-	longitude.Alignment = fyne.TextAlignCenter
-	dateTime := canvas.NewText("date and time    ", nil)
-	dateTime.Alignment = fyne.TextAlignTrailing
-	statusLine := container.NewGridWithColumns(3,
-		latitude, longitude, dateTime)
+	app.statusLine = makeStatusLine(app)
+	finalContent := container.NewVBox(app.statusLine)
 
-	app.statusLine = statusLine
+	app.textOut = widget.NewLabel(getInitialText(10))
 
-	finalContent := container.NewVBox(statusLine)
+	ctr := container.NewVScroll(app.textOut)
+	finalContent.Add(ctr)
+
 	app.MainWindow.SetContent(finalContent)
+}
+
+func getInitialText(numLines int) string {
+	var ans, newLine string
+	for i := 0; i < numLines; i++ {
+		newLine = fmt.Sprintf("%d\n", i)
+		ans += newLine
+	}
+	return ans
 }
