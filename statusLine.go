@@ -11,12 +11,15 @@ func makeStatusLine(app *Config) *fyne.Container {
 	app.latitudeStatus.Alignment = fyne.TextAlignLeading
 
 	app.longitudeStatus = canvas.NewText("Longitude: not available", nil)
-	app.longitudeStatus.Alignment = fyne.TextAlignCenter
+	//app.longitudeStatus.Alignment = fyne.TextAlignTrailing
 
-	app.dateTimeStatus = canvas.NewText("date and time: not available", nil)
-	app.dateTimeStatus.Alignment = fyne.TextAlignTrailing
+	app.altitudeStatus = canvas.NewText("Altitude: not available", nil)
+	//app.altitudeStatus.Alignment = fyne.TextAlignTrailing
 
-	ans := container.NewGridWithColumns(3,
-		app.latitudeStatus, app.longitudeStatus, app.dateTimeStatus)
+	app.dateTimeStatus = canvas.NewText("UTC date/time: not available", nil)
+	//app.dateTimeStatus.Alignment = fyne.TextAlignTrailing
+
+	ans := container.NewGridWithColumns(4,
+		app.latitudeStatus, app.longitudeStatus, app.altitudeStatus, app.dateTimeStatus)
 	return ans
 }

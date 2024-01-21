@@ -10,10 +10,11 @@ func Test_statusLine(t *testing.T) {
 	var appConfig Config
 	app.New() // Necessary in order to create widgets
 	sl := makeStatusLine(&appConfig)
-	assert.Equal(t, 3, len(sl.Objects))
+	assert.Equal(t, 4, len(sl.Objects))
 	assert.Equal(t, "Latitude: not available", appConfig.latitudeStatus.Text)
 	assert.Equal(t, "Longitude: not available", appConfig.longitudeStatus.Text)
-	assert.Equal(t, "date and time: not available", appConfig.dateTimeStatus.Text)
+	assert.Equal(t, "Altitude: not available", appConfig.altitudeStatus.Text)
+	assert.Equal(t, "UTC date/time: not available", appConfig.dateTimeStatus.Text)
 }
 
 //func examiner(t reflect.Type, depth int) {

@@ -1,0 +1,69 @@
+
+General
+
+    The IOTA Flash Timer is based on an Arduino Mega2560 R3 with a custom shield.
+
+    The shield contains a GPS receiver (with a PPS output) and includes a wide dynamic
+    range LED intensity control to enable the LED flash intensity to be matched to
+    camera and telescope configuration while avoiding pixel saturation during flashes.
+
+Top line status bar
+
+    Once stable communication with the Arduino has been established and the appropriate
+    NMEA sentences are being received, your Latitude, Longitude, and Altitude will
+    be continuously updated and displayed.
+
+    Once "time synch" has been achieved, the UTC data/time will also be continuously
+    updated
+
+Central panel
+
+    The large central panel is used to display the output from the Arduino, once it has
+    finished resetting and a valid com port has been selected. This display is always
+    active but, to avoid excessive memory usage if the app is allowed to run unattended,
+    it will be automatically cleared when 100,000 lines are in the list.
+
+baudrate: (entry box)
+
+    When the app starts, the serial port baudrate is set to 250000 baud to match the
+    default setting of the Arduino. You will need to change this value only if a
+    different baudrate is programmed into the Arduino
+
+Com ports available
+(drop down selection list)
+
+    This drop down list shows all of the available com ports. Normally, there will
+    only be a single com port available, in which case it will be assumed that it
+    is the one connected to the Arduino and it will automatically be selected as
+    the "Com port". If there are more than one available com ports, you must
+    select the one for the app to use and serial communication with the Arduino
+    will not be established until a selection has been made.
+
+Com port: none (label)
+
+    When a com port has been selected, this label will change to give the name
+    of the port in use.
+
+Clear output (button)
+
+    Click this button to clear the central panel
+
+(check box) Auto-scroll enabled
+
+    When this box is checked, the display of serial input lines automatically shows
+    (scrolls to) the bottom when the next line is received.
+
+Enter cmd: (entry box)  Send (button)
+
+    Enter commands to be sent to the Flash Timer in the entry box.
+
+    Click the Send button to send the contents of the entry box to the
+    Arduino. The proper line termination characters are automatically added,
+    so there is no need to add them yourself (and would be an error).
+
+Available Arduino commands:
+
+    TBD
+
+
+
