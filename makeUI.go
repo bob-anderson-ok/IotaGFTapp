@@ -15,15 +15,14 @@ func (app *Config) makeUI() {
 
 	app.statusLine = makeStatusLine(app)
 
-	//app.serDataLines = getInitialText(200)
-	app.serDataLines = []string{}
+	app.textOut = []string{}
 
 	topItem := container.NewVBox(app.statusLine)
 
 	// Compose the left hand column element of the main Border layout
 	leftItem := container.NewVBox()
 	leftItem.Add(widget.NewButton("Help", func() { showHelp() }))
-	leftItem.Add(canvas.NewText("=====================", color.NRGBA{R: 180, A: 255}))
+	leftItem.Add(canvas.NewText("=======================", color.NRGBA{R: 180, A: 255}))
 
 	entryField := widget.NewEntry()
 	app.curBaudRate = 250000
@@ -43,7 +42,7 @@ func (app *Config) makeUI() {
 	var comPorts []string
 	app.selectComPort = widget.NewSelect(comPorts, func(value string) { handleComPortSelection(value) })
 	leftItem.Add(app.selectComPort)
-	app.comPortInUse = widget.NewLabel("Com port: none")
+	app.comPortInUse = widget.NewLabel("Port in use: none")
 	leftItem.Add(app.comPortInUse)
 	leftItem.Add(widget.NewSeparator())
 
@@ -64,16 +63,16 @@ func (app *Config) makeUI() {
 	)
 	bottomItem := container.NewVBox(widget.NewSeparator(), bottomEntry)
 
-	app.serDataLines = getInitialText()
-	app.serOutList = widget.NewList(
+	app.textOut = getInitialText()
+	app.textOutDisplay = widget.NewList(
 		func() int {
-			return len(app.serDataLines)
+			return len(app.textOut)
 		},
 		func() fyne.CanvasObject {
 			return widget.NewLabel("template")
 		},
 		func(i widget.ListItemID, o fyne.CanvasObject) {
-			o.(*widget.Label).SetText(app.serDataLines[i])
+			o.(*widget.Label).SetText(app.textOut[i])
 		})
 
 	// We will build the GUI around a Border container.
@@ -83,7 +82,7 @@ func (app *Config) makeUI() {
 		bottomItem,
 		leftItem,
 		nil,
-		app.serOutList)
+		app.textOutDisplay)
 
 	app.MainWindow.SetContent(content)
 }
@@ -103,34 +102,35 @@ func handleComPortSelection(value string) {
 		err := myWin.serialPort.Close()
 		if err != nil {
 			msg := fmt.Sprintf("Attempt to close %s failed.", myWin.comPortName)
-			addToSerialOutputDisplay(msg)
+			addToTextOutDisplay(msg)
 			return
 		}
 		msg := fmt.Sprintf("%s was closed.", myWin.comPortName)
-		addToSerialOutputDisplay(msg)
-
+		addToTextOutDisplay(msg)
 	}
+
+	myWin.comPortName = value
+	if value == "" {
+		myWin.comPortInUse.SetText("Port in use: " + "none")
+		return
+	}
+
 	serialPort, err := openSerialPort(myWin.comPortName, myWin.curBaudRate)
 	myWin.serialPort = serialPort
 	if err != nil {
 		msg := fmt.Sprintf("Attempt to open %s failed.", myWin.comPortName)
-		addToSerialOutputDisplay(msg)
+		addToTextOutDisplay(msg)
 		return
 	} else {
 		msg := fmt.Sprintf("%s was opened successfully.", myWin.comPortName)
-		addToSerialOutputDisplay(msg)
+		addToTextOutDisplay(msg)
 	}
-	fmt.Println("com port", value, "was selected")
-	myWin.comPortInUse.SetText("Com port: " + value)
-}
-func clearSerialOutputDisplay() {
-	myWin.serDataLines = []string{""}
-	myWin.serOutList.Refresh()
+	myWin.comPortInUse.SetText("Port in use: " + value)
 }
 
-func addToSerialOutputDisplay(msg string) {
-	myWin.serDataLines = append(myWin.serDataLines, msg)
-	myWin.serOutList.Refresh()
+func clearSerialOutputDisplay() {
+	myWin.textOut = []string{""}
+	myWin.textOutDisplay.Refresh()
 }
 
 func getInitialText() []string {

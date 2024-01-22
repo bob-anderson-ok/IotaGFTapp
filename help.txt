@@ -32,14 +32,14 @@ baudrate: (entry box)
 Com ports available
 (drop down selection list)
 
-    This drop down list shows all of the available com ports. Normally, there will
+    This drop down list shows all the available com ports. Normally, there will
     only be a single com port available, in which case it will be assumed that it
-    is the one connected to the Arduino and it will automatically be selected as
+    is the one connected to the Arduino, and it will automatically be selected as
     the "Com port". If there are more than one available com ports, you must
     select the one for the app to use and serial communication with the Arduino
     will not be established until a selection has been made.
 
-Com port: none (label)
+Port in use: none (label)
 
     When a com port has been selected, this label will change to give the name
     of the port in use.

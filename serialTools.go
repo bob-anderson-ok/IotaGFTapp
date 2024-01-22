@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"go.bug.st/serial"
 )
 
@@ -11,9 +10,6 @@ func getSerialPortsList() ([]string, error) {
 }
 
 func openSerialPort(portName string, baudrate int) (serial.Port, error) {
-	if myWin.serialPort != nil {
-		fmt.Println("Closing the currently open com port")
-	}
 	mode := &serial.Mode{
 		BaudRate: baudrate,
 	}

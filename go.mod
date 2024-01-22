@@ -4,6 +4,7 @@ go 1.21
 
 require (
 	fyne.io/fyne/v2 v2.4.3
+	github.com/daedaleanai/ublox v0.0.0-20210116232802-16609b0f9f43
 	github.com/stretchr/testify v1.8.4
 	go.bug.st/serial v1.6.1
 )
@@ -12,7 +13,6 @@ require (
 	fyne.io/systray v1.10.1-0.20231115130155-104f5ef7839e // indirect
 	github.com/adrianmo/go-nmea v1.8.0 // indirect
 	github.com/creack/goselect v0.1.2 // indirect
-	github.com/daedaleanai/ublox v0.0.0-20210116232802-16609b0f9f43 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fredbi/uri v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect

@@ -13,6 +13,9 @@ import (
 
 const MaxSerialDataLines = 100_000
 
+//var sentenceChan chan string
+//sentenceChan := make(chan string, 1)
+
 type Config struct {
 	App             fyne.App
 	InfoLog         *log.Logger
@@ -25,9 +28,10 @@ type Config struct {
 	altitudeStatus  *canvas.Text
 	dateTimeStatus  *canvas.Text
 	comPortInUse    *widget.Label
+	portsAvailable  []string
 	autoScroll      *widget.Check
-	serDataLines    []string
-	serOutList      *widget.List
+	textOut         []string
+	textOutDisplay  *widget.List
 	selectComPort   *widget.Select
 	comPortName     string
 	curBaudRate     int
@@ -52,26 +56,76 @@ func main() {
 
 	// Fill in the available com ports and, if there is exactly one comport, open it
 	// at the default baudrate
-	ports, err := getSerialPortsList()
-	if err != nil {
-		addToSerialOutputDisplay("Fatal err: could not get list of available com ports")
-	}
-
-	//ports = append(ports, "Another comport")  // For testing purposes only
-
-	myWin.selectComPort.SetOptions(ports)
-
-	if len(ports) == 1 {
-		myWin.comPortName = ports[0]
-		myWin.comPortInUse.SetText("Com port: " + ports[0])
-		myWin.selectComPort.SetSelectedIndex(0) // Note: this acts as though the user clicked on this entry
-	}
+	scanForComPorts()
 
 	// Start the application go routine where all the work is done
 	go runApp(&myWin)
 
 	// show and run the GUI
 	myWin.MainWindow.ShowAndRun()
+
+	// We're closing, so clean up any allocated resources
+	if myWin.serialPort != nil {
+		err := myWin.serialPort.Close()
+		if err != nil {
+			log.Fatal("While closing serial port got:", err)
+		}
+	}
+}
+
+func scanForComPorts() {
+	ports, err := getSerialPortsList()
+	if err != nil {
+		addToTextOutDisplay("Fatal err: could not get list of available com ports")
+	}
+
+	// TODO Experimental code to detect ports that actually aren't present
+	var realPorts []string
+	for _, port := range ports {
+		sp, err := openSerialPort(port, 250000)
+		if err == nil {
+			// It's an actual attached and active port
+			_ = sp.Close()
+
+			// But check for duplicate names - duplicate names are generated
+			// whenever a com port is disconnected and reconnected (for some unknown reason)
+			duplicate := false
+			for _, p := range realPorts {
+				if p == port {
+					duplicate = true
+				}
+			}
+
+			if !duplicate {
+				realPorts = append(realPorts, port)
+			}
+		}
+	}
+
+	//realPorts = append(realPorts, "Another comport") // For testing purposes only
+	//fmt.Println("Current ports list:", ports)
+
+	myWin.portsAvailable = realPorts
+	myWin.selectComPort.SetOptions(myWin.portsAvailable)
+
+	if len(myWin.portsAvailable) == 0 {
+		myWin.selectComPort.ClearSelected()
+	}
+	myWin.selectComPort.Refresh()
+
+	if len(myWin.portsAvailable) == 1 {
+		myWin.comPortName = myWin.portsAvailable[0]
+		myWin.comPortInUse.SetText("Port in use: " + myWin.portsAvailable[0])
+		myWin.selectComPort.SetSelectedIndex(0) // Note: this acts as though the user clicked on this entry
+	}
+}
+
+func addToTextOutDisplay(msg string) {
+	myWin.textOut = append(myWin.textOut, msg)
+	myWin.textOutDisplay.Refresh()
+	if myWin.autoScroll.Checked {
+		myWin.textOutDisplay.ScrollToBottom()
+	}
 }
 
 func initializeStartingWindow(myWin *Config) {
