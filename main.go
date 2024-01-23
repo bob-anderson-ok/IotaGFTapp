@@ -13,8 +13,16 @@ import (
 
 const MaxSerialDataLines = 100_000
 
-//var sentenceChan chan string
-//sentenceChan := make(chan string, 1)
+type GPSdata struct {
+	date          string
+	timeUTC       string
+	latitude      string
+	latDirection  string
+	longitude     string
+	lonDirection  string
+	altitude      string
+	altitudeUnits string
+}
 
 type Config struct {
 	App             fyne.App
@@ -36,10 +44,20 @@ type Config struct {
 	comPortName     string
 	curBaudRate     int
 	serialPort      serial.Port
+	lastPvalue      int64
+	gpggaCheckBox   *widget.Check
+	gprmcCheckBox   *widget.Check
+	gpdtmCheckBox   *widget.Check
+	pubxCheckBox    *widget.Check
+	pCheckBox       *widget.Check
+	modeCheckBox    *widget.Check
+	cmdEntry        *widget.Entry
 }
 
 //go:embed help.txt
 var helpText string
+
+var gpsData GPSdata
 
 var myWin Config
 
@@ -59,6 +77,7 @@ func main() {
 	scanForComPorts()
 
 	// Start the application go routine where all the work is done
+
 	go runApp(&myWin)
 
 	// show and run the GUI
@@ -79,7 +98,6 @@ func scanForComPorts() {
 		addToTextOutDisplay("Fatal err: could not get list of available com ports")
 	}
 
-	// TODO Experimental code to detect ports that actually aren't present
 	var realPorts []string
 	for _, port := range ports {
 		sp, err := openSerialPort(port, 250000)
@@ -102,7 +120,7 @@ func scanForComPorts() {
 		}
 	}
 
-	//realPorts = append(realPorts, "Another comport") // For testing purposes only
+	//realPorts = append(realPorts, "COM?") // For testing purposes only
 	//fmt.Println("Current ports list:", ports)
 
 	myWin.portsAvailable = realPorts
@@ -131,7 +149,7 @@ func addToTextOutDisplay(msg string) {
 func initializeStartingWindow(myWin *Config) {
 	myWin.App = app.New()
 	myWin.MainWindow = myWin.App.NewWindow("IOTA GFT app")
-	myWin.MainWindow.Resize(fyne.Size{Height: 600, Width: 900})
+	myWin.MainWindow.Resize(fyne.Size{Height: 600, Width: 1000})
 	myWin.MainWindow.SetMaster() // As 'master', if the window is closed, the application quits.
 	myWin.MainWindow.CenterOnScreen()
 }

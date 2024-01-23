@@ -39,6 +39,9 @@ Com ports available
     select the one for the app to use and serial communication with the Arduino
     will not be established until a selection has been made.
 
+    Note: if you make a selection while a com port is currently open, the currently
+    open com port is closed.
+
 Port in use: none (label)
 
     When a com port has been selected, this label will change to give the name
@@ -63,7 +66,14 @@ Enter cmd: (entry box)  Send (button)
 
 Available Arduino commands:
 
-    TBD
+    [] means optional
+
+    flash commands
+            flash now
+            flash duration [X]          - get/set the current PPS flash duration (seconds)
+            flash level    [X]          - get/set the current flash intensity level [ 0 to 255]
+            flash range    [X]          -get/set the current range of flash intensity [ 0 to 2]
+            flash mode     [pps | exp ] - get/set the current flash mode (PPS or EXP)
 
 
 

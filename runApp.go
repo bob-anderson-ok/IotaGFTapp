@@ -2,36 +2,71 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"time"
 )
 
 func runApp(myWin *Config) {
-	alt := 0
 	sentenceChan := make(chan string, 1)
+
 	go getNextSentence(sentenceChan)
+
 	for {
 		if myWin.serialPort != nil {
 			sentence := <-sentenceChan
-			addToTextOutDisplay(sentence)
-			//demo(myWin, alt)
-			alt += 10
+			ans, err := parseSentence(sentence, &gpsData)
+			if err != nil {
+				addToTextOutDisplay(fmt.Sprintf("%v", err))
+			}
+
+			displayEnabledItems(ans)
 
 			// Check for selected com port no longer available - an error will occur
 			// if the modem status bits cannot be read.
-			_, err := myWin.serialPort.GetModemStatusBits()
+			_, err = myWin.serialPort.GetModemStatusBits()
 			if err != nil {
-				//addToTextOutDisplay("com port err while getting status bits")
 				myWin.serialPort = nil
-				//removePortFromSelectList(myWin.comPortName)
 				myWin.comPortName = ""
 			}
 		} else {
 			time.Sleep(1 * time.Second)
 			scanForComPorts()
-			//fmt.Println("myWin.portsAvailable:", myWin.portsAvailable)
 		}
+	}
+}
+
+func displayEnabledItems(ans []string) {
+	if ans[0] == "" {
+		return
+	}
+
+	switch ans[0] {
+	case "$GPGGA":
+		if myWin.gpggaCheckBox.Checked {
+			addToTextOutDisplay(ans[1])
+		}
+	case "$GPRMC":
+		if myWin.gprmcCheckBox.Checked {
+			addToTextOutDisplay(ans[1])
+		}
+	case "$GPDTM":
+		if myWin.gpdtmCheckBox.Checked {
+			addToTextOutDisplay(ans[1])
+		}
+	case "$PUBX":
+		if myWin.pubxCheckBox.Checked {
+			addToTextOutDisplay(ans[1])
+		}
+	case "P":
+		if myWin.pCheckBox.Checked {
+			addToTextOutDisplay(ans[1])
+		}
+	case "MODE":
+		if myWin.modeCheckBox.Checked {
+			addToTextOutDisplay(ans[1])
+		}
+	default:
+		addToTextOutDisplay(ans[1])
 	}
 }
 
@@ -63,10 +98,11 @@ func getNextSentence(sc chan string) string {
 			// Read a chunk of up to 200 bytes into buff
 			n, err := myWin.serialPort.Read(buff)
 			if err != nil {
-				log.Print(err)
+				//log.Print(err)
+				myWin.serialPort = nil
 			}
 			if n == 0 {
-				fmt.Println("\nEOF")
+				//log.Print("\nEOF")
 				break
 			}
 
