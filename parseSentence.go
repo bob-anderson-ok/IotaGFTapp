@@ -22,7 +22,8 @@ func parseSentence(sentence string, gpsInfo *GPSdata) ([]string, error) {
 
 		// 'payload' removes the leading "{000C97C7 " and the trailing "}". What is left should be standard nmea frame
 		// with leading $ and trailing checksum
-		payload := parts[1][:len(parts[1])-1]
+		//payload := parts[1][:len(parts[1])-1]
+		payload := removeTrailingCharacter(parts[1])
 
 		if !isChecksumValid(payload) {
 			return ans, errors.New("parseSentence(): failed checksum test")
@@ -32,8 +33,16 @@ func parseSentence(sentence string, gpsInfo *GPSdata) ([]string, error) {
 		nmeaName := parts[0]
 		switch nmeaName {
 		case "$GPGGA":
+			gpsInfo.altitude = parts[9]
+			gpsInfo.altitudeUnits = parts[10]
 			return []string{"$GPGGA", sentence}, nil
 		case "$GPRMC":
+			gpsInfo.timeUTC = parts[1]
+			gpsInfo.latitude = parts[3]
+			gpsInfo.latDirection = parts[4]
+			gpsInfo.longitude = parts[5]
+			gpsInfo.lonDirection = parts[6]
+			gpsInfo.date = parts[9]
 			return []string{"$GPRMC", sentence}, nil
 		case "$GPDTM":
 			return []string{"$GPDTM", sentence}, nil
@@ -50,6 +59,7 @@ func parseSentence(sentence string, gpsInfo *GPSdata) ([]string, error) {
 		if len(parts) < 2 {
 			return ans, errors.New("parseSentence(): split of MODE sentence on space did not give 2 parts")
 		}
+		gpsInfo.status = removeTrailingCharacter(parts[1])
 		ans = []string{"MODE", sentence}
 		return ans, nil
 	}
@@ -99,4 +109,8 @@ func isChecksumValid(frameAsString string) bool {
 		return false
 	}
 	return true
+}
+
+func removeTrailingCharacter(part string) string {
+	return part[:len(part)-1]
 }

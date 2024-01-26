@@ -3,6 +3,7 @@ package main
 import (
 	"go.bug.st/serial"
 	"log"
+	"time"
 )
 
 func getSerialPortsList() ([]string, error) {
@@ -14,9 +15,9 @@ func openSerialPort(portName string, baudrate int) (serial.Port, error) {
 	mode := &serial.Mode{
 		BaudRate: baudrate,
 	}
+
 	port, err1 := serial.Open(portName, mode)
 	if err1 != nil {
-		log.Println(err1.Error())
 		return port, err1
 	}
 
@@ -30,6 +31,12 @@ func openSerialPort(portName string, baudrate int) (serial.Port, error) {
 	if err3 != nil {
 		log.Println(err3.Error())
 		return port, err3
+	}
+
+	err4 := port.SetReadTimeout(2 * time.Second)
+	if err4 != nil {
+		log.Println(err4.Error())
+		return port, err4
 	}
 
 	return port, err1

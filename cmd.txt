@@ -1,0 +1,28 @@
+Available IOTA GFT commands:
+
+	[ ]	means optional
+	|	means 'or'
+	X	is an integer
+
+	flash commands
+
+			flash now
+			flash duration	[X]			- get/set the current PPS flash duration (seconds)
+			flash level		[X]			- get/set the current flash intensity level (0 to 255)
+			flash range		[X]			- get/set the current range of flash intensity (0 to 2)
+			flash mode 		[pps | exp ]		- get/set the current flash mode (PPS or EXP)
+
+		Note:	range parameter 0 gives least bright LED flash
+			range parameter 1 gives middle brightness LED flash
+			range parameter 2 gives brightest LED flash
+			
+	pulse commands
+
+			pulse duration	[X]
+			pulse interval 	[X]
+
+	miscellaneous
+
+			device
+			version
+			status

@@ -8,48 +8,8 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 	"image/color"
-	"strconv"
+	"os"
 )
-
-type InputField struct {
-	widget.Entry
-	inputText      widget.Entry
-	customFunction func()
-}
-
-func NewInputField() *InputField {
-	i := &InputField{
-		Entry: widget.Entry{},
-		inputText: widget.Entry{
-			DisableableWidget: widget.DisableableWidget{},
-			Text:              "",
-			TextStyle:         fyne.TextStyle{},
-			PlaceHolder:       "",
-			OnChanged:         nil,
-			OnSubmitted:       nil,
-			Password:          false,
-			MultiLine:         false,
-			Wrapping:          0,
-			Scroll:            0,
-			Validator:         nil,
-			CursorRow:         0,
-			CursorColumn:      0,
-			OnCursorChanged:   nil,
-			ActionItem:        nil,
-		},
-		customFunction: func() { fmt.Println("customFunction ran") },
-	}
-	i.ExtendBaseWidget(i)
-	return i
-}
-
-//func (m *myEntry) TypedKey(key fyne.KeyEvent) {
-//	if key.Name == "Return" {
-//		fmt.Println("Return typed in cmd entry")
-//	} else {
-//		m.Entry.TypedKey(&key)
-//	}
-//}
 
 func (app *Config) makeUI() {
 
@@ -62,31 +22,29 @@ func (app *Config) makeUI() {
 	// Compose the left hand column element of the main Border layout
 	leftItem := container.NewVBox()
 	leftItem.Add(widget.NewButton("Help", func() { showHelp() }))
-	leftItem.Add(canvas.NewText("=======================", color.NRGBA{R: 180, A: 255}))
 
-	entryField := widget.NewEntry()
-	app.curBaudRate = 250000
-	entryField.SetText(strconv.Itoa(app.curBaudRate))
-	baudrateEntry := container.NewBorder( // top, bottom, left, right, center
-		nil,
-		nil,
-		canvas.NewText("baudrate:", nil),
-		nil,
-		entryField,
-	)
+	leftItem.Add(canvas.NewText("=========================", color.NRGBA{R: 180, A: 255}))
 
-	leftItem.Add(baudrateEntry)
-	leftItem.Add(widget.NewSeparator())
+	app.curBaudRate = baudrate
 
-	leftItem.Add(canvas.NewText("Com ports available", nil))
-	var comPorts []string
-	app.selectComPort = widget.NewSelect(comPorts, func(value string) { handleComPortSelection(value) })
+	leftItem.Add(canvas.NewText("Serial ports available", nil))
+	//var comPorts []string
+	app.selectComPort = widget.NewSelect([]string{}, func(value string) { handleComPortSelection(value) })
 	leftItem.Add(app.selectComPort)
-	app.comPortInUse = widget.NewLabel("Port in use: none")
+	app.comPortInUse = widget.NewLabel("Serial port open: none")
 	leftItem.Add(app.comPortInUse)
-	leftItem.Add(widget.NewSeparator())
+
+	closePortButton := widget.NewButton("Close serial port", func() { closeCurrentPort() })
+	leftItem.Add(closePortButton)
 
 	leftItem.Add(layout.NewSpacer())
+
+	app.logCheckBox = widget.NewCheck("Log file wanted", func(checked bool) { setKeepLogFileFlag(checked) })
+	app.logCheckBox.SetChecked(true)
+	leftItem.Add(app.logCheckBox)
+
+	leftItem.Add(layout.NewSpacer())
+
 	leftItem.Add(widget.NewButton("Clear output", func() { clearSerialOutputDisplay() }))
 	app.autoScroll = widget.NewCheck("Auto-scroll enabled", func(bool) {})
 	app.autoScroll.SetChecked(true)
@@ -118,7 +76,7 @@ func (app *Config) makeUI() {
 	rightItem.Add(app.pCheckBox)
 
 	app.modeCheckBox = widget.NewCheck("MODE", func(bool) {})
-	app.modeCheckBox.SetChecked(true)
+	app.modeCheckBox.SetChecked(false)
 	rightItem.Add(app.modeCheckBox)
 
 	rightItem.Add(layout.NewSpacer())
@@ -131,10 +89,13 @@ func (app *Config) makeUI() {
 	bottomEntry := container.NewBorder( // top, bottom, left, right, center
 		nil,
 		nil,
-		canvas.NewText("Enter cmd:", nil),
-		widget.NewButton("Send cmd", func() { sendCommandToArduino() }),
+		canvas.NewText("Enter IOTA GFT command:", nil),
+		widget.NewButton("Help: commands", func() { showCommandHelp() }),
+		//widget.NewButton("Send cmd", func() { sendCommandToArduino() }),
 		app.cmdEntry,
 	)
+	app.cmdEntry.SetPlaceHolder("commands to be sent to the GFT go here - Press Enter to send")
+
 	bottomItem := container.NewVBox(widget.NewSeparator(), bottomEntry)
 
 	app.textOut = getInitialText()
@@ -161,18 +122,65 @@ func (app *Config) makeUI() {
 	app.MainWindow.SetContent(content)
 }
 
+func closeCurrentPort() {
+	myWin.spMutex.Lock()
+	if myWin.serialPort != nil {
+		err := myWin.serialPort.Close()
+		if err != nil {
+			fmt.Println(fmt.Errorf("closeCurrentPort(): %w", err))
+		}
+		myWin.serialPort = nil
+		gpsData = GPSdata{}
+		updateStatusLine(gpsData)
+		addToTextOutDisplay(fmt.Sprintf("%s has been closed", myWin.comPortName))
+		myWin.comPortInUse.Text = "Serial port open: none"
+		myWin.comPortInUse.Refresh()
+	} else {
+		addToTextOutDisplay("There is no open serial port")
+	}
+	myWin.spMutex.Unlock()
+}
+
+func setKeepLogFileFlag(checked bool) {
+	myWin.keepLogFile = checked
+}
+
+func deleteLogfile() {
+	//fmt.Println("State of logCheckBox: ", checked)
+	if !myWin.keepLogFile {
+		//fmt.Println("Deleting log file")
+		//myWin.logCheckBox.Disable()
+		filePath := myWin.logFile.Name()
+		err := myWin.logFile.Close()
+		if err != nil {
+			fmt.Println(fmt.Errorf("deleteLogfile(): %w", err))
+		}
+		myWin.logFile = nil
+		err = os.Remove(filePath)
+		if err != nil {
+			fmt.Println(fmt.Errorf("deleteLogfile(): %w", err))
+		}
+		//fmt.Println("Log file deleted")
+	}
+}
+
 func sendCommandToArduino() {
 	cmdGiven := myWin.cmdEntry.Text
 	cmdGiven += "\r\n"
-	_, err := myWin.serialPort.Write([]byte(cmdGiven))
-	if err != nil {
-		errMsg := fmt.Errorf("%w", err)
-		fmt.Println(errMsg.Error())
+	myWin.spMutex.Lock()
+	if myWin.serialPort != nil {
+		_, err := myWin.serialPort.Write([]byte(cmdGiven))
+		if err != nil {
+			errMsg := fmt.Errorf("%w", err)
+			fmt.Println(errMsg.Error())
+		}
 	}
+	myWin.spMutex.Unlock()
 }
+
 func showHelp() {
-	fmt.Println("User asked for help display")
-	helpWin := myWin.App.NewWindow("Help")
+	//fmt.Println("User asked for help display")
+	helpWin := myWin.App.NewWindow("IOTA GFT help")
 	helpWin.Resize(fyne.Size{Height: 400, Width: 700})
 	scrollableText := container.NewVScroll(widget.NewRichTextWithText(helpText))
 	helpWin.SetContent(scrollableText)
@@ -180,8 +188,20 @@ func showHelp() {
 	helpWin.CenterOnScreen()
 }
 
+func showCommandHelp() {
+	helpWin := myWin.App.NewWindow("Commands")
+	helpWin.Resize(fyne.Size{Height: 600, Width: 700})
+	scrollableText := container.NewVScroll(widget.NewRichTextWithText(cmdText))
+	helpWin.SetContent(scrollableText)
+	helpWin.Show()
+	helpWin.CenterOnScreen()
+}
+
 func handleComPortSelection(value string) {
+	myWin.spMutex.Lock()
+	defer myWin.spMutex.Unlock()
 	if myWin.serialPort != nil {
+		// There is a port already in use. We will close it.
 		err := myWin.serialPort.Close()
 		if err != nil {
 			msg := fmt.Sprintf("Attempt to close %s failed.", myWin.comPortName)
@@ -189,27 +209,36 @@ func handleComPortSelection(value string) {
 			return
 		}
 		msg := fmt.Sprintf("The currently active serial port (%s) was closed.", myWin.comPortName)
+
+		gpsData = GPSdata{}
+		updateStatusLine(gpsData)
+		myWin.statusLine.Refresh()
+
+		myWin.selectComPort.Refresh()
+
+		myWin.comPortName = ""
 		addToTextOutDisplay(msg)
-		value = ""
+		msg = fmt.Sprintf("Make a new serial port selection.")
+		addToTextOutDisplay(msg)
+		myWin.comPortInUse.SetText("Serial port open: " + "none")
+		return
 	}
 
 	myWin.comPortName = value
-	if value == "" {
-		myWin.comPortInUse.SetText("Port in use: " + "none")
-		return
-	}
 
-	serialPort, err := openSerialPort(myWin.comPortName, myWin.curBaudRate)
-	myWin.serialPort = serialPort
-	if err != nil {
-		msg := fmt.Sprintf("Attempt to open %s failed.", myWin.comPortName)
-		addToTextOutDisplay(msg)
-		return
-	} else {
-		msg := fmt.Sprintf("%s was opened successfully.", myWin.comPortName)
-		addToTextOutDisplay(msg)
+	if myWin.comPortName != "" {
+		serialPort, err := openSerialPort(myWin.comPortName, myWin.curBaudRate)
+		myWin.serialPort = serialPort
+		if err != nil {
+			msg := fmt.Sprintf("Attempt to open %s failed.", myWin.comPortName)
+			addToTextOutDisplay(msg)
+			return
+		} else {
+			msg := fmt.Sprintf("%s was opened successfully.", myWin.comPortName)
+			addToTextOutDisplay(msg)
+		}
+		myWin.comPortInUse.SetText("Serial port open: " + value)
 	}
-	myWin.comPortInUse.SetText("Port in use: " + value)
 }
 
 func clearSerialOutputDisplay() {
@@ -223,6 +252,8 @@ func getInitialText() []string {
 
 	newLine = "... serial output will appear here once the Arduino starts up."
 	ans = append(ans, newLine)
+	//newLine = fmt.Sprintf("... the serial port parameters: 8,N,1 and %d baudrate.", baudrate)
+	//addToTextOutDisplay(newLine)
 
 	return ans
 }

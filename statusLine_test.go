@@ -10,7 +10,8 @@ func Test_statusLine(t *testing.T) {
 	var appConfig Config
 	app.New() // Necessary in order to create widgets
 	sl := makeStatusLine(&appConfig)
-	assert.Equal(t, 4, len(sl.Objects))
+	assert.Equal(t, 5, len(sl.Objects))
+	assert.Equal(t, "Status: not available", appConfig.statusStatus.Text)
 	assert.Equal(t, "Latitude: not available", appConfig.latitudeStatus.Text)
 	assert.Equal(t, "Longitude: not available", appConfig.longitudeStatus.Text)
 	assert.Equal(t, "Altitude: not available", appConfig.altitudeStatus.Text)

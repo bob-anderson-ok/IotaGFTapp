@@ -1,20 +1,32 @@
 
 General
 
-    The IOTA Flash Timer is based on an Arduino Mega2560 R3 with a custom shield.
+    The IOTA GFT Flash Timer is based on an Arduino Mega2560 R3 with a custom shield.
 
     The shield contains a GPS receiver (with a PPS output) and includes a wide dynamic
-    range LED intensity control to enable the LED flash intensity to be matched to
+    range LED intensity control to enable the LED flash intensity to be matched to the
     camera and telescope configuration while avoiding pixel saturation during flashes.
+
+    In operation, the Arduino sends 'sentences' (strings terminated by CR LF). There are
+    6 'standard' sentences: 4 NMEA GPS sentences plus a P (for pulse) and a MODE that
+    reports the internal status of the GFT. There are other sentences that will be emitted
+    in response to 'events' such as error, a command entry, a command response, the LED
+    turning on or off, etc. These 'other' sentences are always displayed.
+
+    All output from the Arduino is recorded in a log file (.txt) automatically named
+    from the date and time - UTC is used for ease of correlation with an occultation time.
+
+    Sometimes, this log file is not wanted. There is a checkbox to allow the log file
+    recording to be suppressed.
 
 Top line status bar
 
     Once stable communication with the Arduino has been established and the appropriate
-    NMEA sentences are being received, your Latitude, Longitude, and Altitude will
-    be continuously updated and displayed.
+    NMEA sentences are being received, the status of the GFT, your Latitude, Longitude,
+    and Altitude will be continuously updated and displayed.
 
-    Once "time synch" has been achieved, the UTC data/time will also be continuously
-    updated
+    Once "time synch" has been achieved, the UTC time and date will also be continuously
+    updated and the Status: report will change from red characters to green.
 
 Central panel
 
@@ -23,29 +35,49 @@ Central panel
     active but, to avoid excessive memory usage if the app is allowed to run unattended,
     it will be automatically cleared when 100,000 lines are in the list.
 
-baudrate: (entry box)
+baudrate (optional command line argument - no entry widget)
 
     When the app starts, the serial port baudrate is set to 250000 baud to match the
     default setting of the Arduino. You will need to change this value only if a
-    different baudrate is programmed into the Arduino
+    different baudrate is programmed into the Arduino. This can be done by adding
+    the desired baudrate as a command line argument when invoking the app.
 
-Com ports available
-(drop down selection list)
+Serial ports available (drop down selection list)
 
-    This drop down list shows all the available com ports. Normally, there will
-    only be a single com port available, in which case it will be assumed that it
-    is the one connected to the Arduino, and it will automatically be selected as
-    the "Com port". If there are more than one available com ports, you must
-    select the one for the app to use and serial communication with the Arduino
-    will not be established until a selection has been made.
+    This drop down list shows all the available serial ports. Normally, there will
+    only be a single serial port available, in which case it will be assumed that it
+    is the one connected to the Arduino, and it will automatically be opened.
+    If there are more than one available serial ports, you must select the one for
+    the app to use. Serial communication with the Arduino will not be established
+    until a selection has been made.
 
-    Note: if you make a selection while a com port is currently open, the currently
-    open com port is closed.
+    Note: if you make a selection while a serial port is currently open, the currently
+    open serial port is closed. There is also a button available to directly
+    close the open port.
 
-Port in use: none (label)
+Serial port open: none (label)
 
     When a com port has been selected, this label will change to give the name
     of the port in use.
+
+Close serial port (button)
+
+    Click this button to close the currently open serial port.
+
+    Note: It may take several seconds for the port to close, particularly
+    for a serial port that is not responding.
+
+    Note: if there is only one available serial port, it will be automatically
+    reopened  If you really need to stop the serial communication in this case,
+    just unplug it.
+
+(check box) Log file wanted
+
+    Log files are always created in the operating directory of the app when the app
+    is started. If this log file is not wanted, uncheck this box. That will delete the
+    currently being written-to log file when the app is closed, so you can change your mind.
+    This tool can be used to avoid 'clutter' in the directory when doing tests before an
+    observation.
 
 Clear output (button)
 
@@ -53,27 +85,17 @@ Clear output (button)
 
 (check box) Auto-scroll enabled
 
-    When this box is checked, the display of serial input lines automatically shows
-    (scrolls to) the bottom when the next line is received.
+    When this box is checked, the display of serial input lines automatically
+    scrolls to the bottom when the next line is received.
 
-Enter cmd: (entry box)  Send (button)
+Enter IOTA GFT command: (entry box)  Help: commands (button)
 
     Enter commands to be sent to the Flash Timer in the entry box.
 
-    Click the Send button to send the contents of the entry box to the
-    Arduino. The proper line termination characters are automatically added,
-    so there is no need to add them yourself (and would be an error).
+    Press enter while the cursor is in the entry box to send the string to the
+    Arduino.
 
-Available Arduino commands:
-
-    [] means optional
-
-    flash commands
-            flash now
-            flash duration [X]          - get/set the current PPS flash duration (seconds)
-            flash level    [X]          - get/set the current flash intensity level [ 0 to 255]
-            flash range    [X]          -get/set the current range of flash intensity [ 0 to 2]
-            flash mode     [pps | exp ] - get/set the current flash mode (PPS or EXP)
-
-
-
+Down the right hand side there is a set of checkboxes. These enable/disable the
+display of the 6 standard sentence types that are emitted by the GFT. All other
+sentence types always display. NOTE: all sentences are always written to the
+log file whether they are displayed or not.
