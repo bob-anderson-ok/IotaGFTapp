@@ -139,41 +139,6 @@ func updateStatusLine(gpsInfo GPSdata) {
 	}
 }
 
-func displayEnabledItems(ans []string) {
-	if ans[0] == "" {
-		return
-	}
-
-	switch ans[0] {
-	case "$GPGGA":
-		if myWin.gpggaCheckBox.Checked {
-			addToTextOutDisplay(ans[1])
-		}
-	case "$GPRMC":
-		if myWin.gprmcCheckBox.Checked {
-			addToTextOutDisplay(ans[1])
-		}
-	case "$GPDTM":
-		if myWin.gpdtmCheckBox.Checked {
-			addToTextOutDisplay(ans[1])
-		}
-	case "$PUBX":
-		if myWin.pubxCheckBox.Checked {
-			addToTextOutDisplay(ans[1])
-		}
-	case "P":
-		if myWin.pCheckBox.Checked {
-			addToTextOutDisplay(ans[1])
-		}
-	case "MODE":
-		if myWin.modeCheckBox.Checked {
-			addToTextOutDisplay(ans[1])
-		}
-	default:
-		addToTextOutDisplay(ans[1])
-	}
-}
-
 func getNextSentence(sc chan string) string {
 	started := false // remains false until Arduino emits "[STARTING!]"
 
@@ -233,4 +198,102 @@ func getNextSentence(sc chan string) string {
 			}
 		} // read chunks loop
 	} // infinite loop
+}
+
+func displayEnabledItems(ans []string) {
+	if ans[0] == "" {
+		return
+	}
+
+	switch ans[0] {
+	case "$GPGGA":
+		if myWin.gpggaCheckBox.Checked {
+			addToTextOutDisplay(ans[1])
+		}
+	case "$GPRMC":
+		if myWin.gprmcCheckBox.Checked {
+			addToTextOutDisplay(ans[1])
+		}
+	case "$GPDTM":
+		if myWin.gpdtmCheckBox.Checked {
+			addToTextOutDisplay(ans[1])
+		}
+	case "$PUBX":
+		if myWin.pubxCheckBox.Checked {
+			addToTextOutDisplay(ans[1])
+		}
+	case "P":
+		if myWin.pCheckBox.Checked {
+			addToTextOutDisplay(ans[1])
+		}
+	case "MODE":
+		if myWin.modeCheckBox.Checked {
+			addToTextOutDisplay(ans[1])
+		}
+	default:
+		addToTextOutDisplay(ans[1])
+	}
+}
+
+func scanForComPorts() {
+	ports, err := getSerialPortsList()
+	if err != nil {
+		addToTextOutDisplay("Fatal err: could not get list of available com ports")
+	}
+
+	var realPorts []string
+	for _, port := range ports {
+		if port == myWin.comPortName { // Don't fiddle with an open port
+			realPorts = append(realPorts, port)
+
+			// But check for duplicate names - duplicate names are generated
+			// whenever a com port is disconnected and reconnected (for some unknown reason)
+			if !isDuplicate(realPorts, port) {
+				realPorts = append(realPorts, port)
+			}
+			continue
+		}
+		// Do a 'test open' to see if this is a real serial port
+		sp, err := openSerialPort(port, baudrate)
+		if err == nil {
+			// It's an actual attached and active port
+			_ = sp.Close()
+
+			// But check for duplicate names - duplicate names are generated
+			// whenever a com port is disconnected and reconnected (for some unknown reason)
+			if !isDuplicate(realPorts, port) {
+				realPorts = append(realPorts, port)
+			}
+		}
+	}
+
+	// Update the drop-down selection widget
+	myWin.portsAvailable = realPorts
+	myWin.selectComPort.SetOptions([]string{""})
+	myWin.selectComPort.SetOptions(myWin.portsAvailable)
+
+	if len(myWin.portsAvailable) == 0 {
+		myWin.selectComPort.ClearSelected()
+		myWin.selectComPort.PlaceHolder = "(select one)"
+		gpsData = GPSdata{}
+	}
+
+	updateStatusLine(gpsData)
+	myWin.selectComPort.Refresh()
+
+	if len(myWin.portsAvailable) == 1 {
+		myWin.comPortName = myWin.portsAvailable[0]
+		myWin.comPortInUse.SetText("Serial port open: " + myWin.portsAvailable[0])
+		myWin.selectComPort.SetSelectedIndex(0) // Note: this acts as though the user clicked on this entry
+	}
+}
+
+func isDuplicate(realPorts []string, port string) bool {
+	duplicate := false
+	for _, p := range realPorts {
+		if p == port {
+			duplicate = true
+		}
+	}
+	return duplicate
 }

@@ -8,7 +8,6 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 	"image/color"
-	"os"
 )
 
 func (app *Config) makeUI() {
@@ -145,25 +144,6 @@ func setKeepLogFileFlag(checked bool) {
 	myWin.keepLogFile = checked
 }
 
-func deleteLogfile() {
-	//fmt.Println("State of logCheckBox: ", checked)
-	if !myWin.keepLogFile {
-		//fmt.Println("Deleting log file")
-		//myWin.logCheckBox.Disable()
-		filePath := myWin.logFile.Name()
-		err := myWin.logFile.Close()
-		if err != nil {
-			fmt.Println(fmt.Errorf("deleteLogfile(): %w", err))
-		}
-		myWin.logFile = nil
-		err = os.Remove(filePath)
-		if err != nil {
-			fmt.Println(fmt.Errorf("deleteLogfile(): %w", err))
-		}
-		//fmt.Println("Log file deleted")
-	}
-}
-
 func sendCommandToArduino() {
 	cmdGiven := myWin.cmdEntry.Text
 	cmdGiven += "\r\n"
@@ -176,16 +156,6 @@ func sendCommandToArduino() {
 		}
 	}
 	myWin.spMutex.Unlock()
-}
-
-func showHelp() {
-	//fmt.Println("User asked for help display")
-	helpWin := myWin.App.NewWindow("IOTA GFT help")
-	helpWin.Resize(fyne.Size{Height: 400, Width: 700})
-	scrollableText := container.NewVScroll(widget.NewRichTextWithText(helpText))
-	helpWin.SetContent(scrollableText)
-	helpWin.Show()
-	helpWin.CenterOnScreen()
 }
 
 func showCommandHelp() {
@@ -256,4 +226,33 @@ func getInitialText() []string {
 	//addToTextOutDisplay(newLine)
 
 	return ans
+}
+
+func makeStatusLine(app *Config) *fyne.Container {
+	//app.statusStatus = canvas.NewText("Status: not available", color.NRGBA{R: 180, A: 255})
+	app.statusStatus = canvas.NewText("Status: not available", nil)
+	app.statusStatus.Alignment = fyne.TextAlignLeading
+
+	app.latitudeStatus = canvas.NewText("Latitude: not available", nil)
+
+	app.longitudeStatus = canvas.NewText("Longitude: not available", nil)
+
+	app.altitudeStatus = canvas.NewText("Altitude: not available", nil)
+
+	app.dateTimeStatus = canvas.NewText("UTC date/time: not available", nil)
+
+	// 5 items with only 4 columns so that dataTime appears on second line
+	ans := container.NewGridWithColumns(4,
+		app.statusStatus, app.latitudeStatus, app.longitudeStatus, app.altitudeStatus, app.dateTimeStatus)
+	return ans
+}
+
+func showHelp() {
+	//fmt.Println("User asked for help display")
+	helpWin := myWin.App.NewWindow("IOTA GFT help")
+	helpWin.Resize(fyne.Size{Height: 400, Width: 700})
+	scrollableText := container.NewVScroll(widget.NewRichTextWithText(helpText))
+	helpWin.SetContent(scrollableText)
+	helpWin.Show()
+	helpWin.CenterOnScreen()
 }

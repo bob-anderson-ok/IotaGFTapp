@@ -170,69 +170,6 @@ func main() {
 	myWin.spMutex.Unlock()
 }
 
-func scanForComPorts() {
-	ports, err := getSerialPortsList()
-	if err != nil {
-		addToTextOutDisplay("Fatal err: could not get list of available com ports")
-	}
-
-	var realPorts []string
-	for _, port := range ports {
-		if port == myWin.comPortName { // Don't fiddle with an open port
-			realPorts = append(realPorts, port)
-
-			// But check for duplicate names - duplicate names are generated
-			// whenever a com port is disconnected and reconnected (for some unknown reason)
-			if !isDuplicate(realPorts, port) {
-				realPorts = append(realPorts, port)
-			}
-			continue
-		}
-		// Do a 'test open' to see if this is a real serial port
-		sp, err := openSerialPort(port, baudrate)
-		if err == nil {
-			// It's an actual attached and active port
-			_ = sp.Close()
-
-			// But check for duplicate names - duplicate names are generated
-			// whenever a com port is disconnected and reconnected (for some unknown reason)
-			if !isDuplicate(realPorts, port) {
-				realPorts = append(realPorts, port)
-			}
-		}
-	}
-
-	// Update the drop-down selection widget
-	myWin.portsAvailable = realPorts
-	myWin.selectComPort.SetOptions([]string{""})
-	myWin.selectComPort.SetOptions(myWin.portsAvailable)
-
-	if len(myWin.portsAvailable) == 0 {
-		myWin.selectComPort.ClearSelected()
-		myWin.selectComPort.PlaceHolder = "(select one)"
-		gpsData = GPSdata{}
-	}
-
-	updateStatusLine(gpsData)
-	myWin.selectComPort.Refresh()
-
-	if len(myWin.portsAvailable) == 1 {
-		myWin.comPortName = myWin.portsAvailable[0]
-		myWin.comPortInUse.SetText("Serial port open: " + myWin.portsAvailable[0])
-		myWin.selectComPort.SetSelectedIndex(0) // Note: this acts as though the user clicked on this entry
-	}
-}
-
-func isDuplicate(realPorts []string, port string) bool {
-	duplicate := false
-	for _, p := range realPorts {
-		if p == port {
-			duplicate = true
-		}
-	}
-	return duplicate
-}
-
 func addToTextOutDisplay(msg string) {
 	// Write every msg added to the text out panel to the log file
 	//_, fileErr := myWin.logFile.WriteString(msg + "\n")
@@ -256,4 +193,23 @@ func initializeStartingWindow(myWin *Config) {
 	myWin.MainWindow.Resize(fyne.Size{Height: 600, Width: 1100})
 	myWin.MainWindow.SetMaster() // As 'master', if the window is closed, the application quits.
 	myWin.MainWindow.CenterOnScreen()
+}
+
+func deleteLogfile() {
+	//fmt.Println("State of logCheckBox: ", checked)
+	if !myWin.keepLogFile {
+		//fmt.Println("Deleting log file")
+		//myWin.logCheckBox.Disable()
+		filePath := myWin.logFile.Name()
+		err := myWin.logFile.Close()
+		if err != nil {
+			fmt.Println(fmt.Errorf("deleteLogfile(): %w", err))
+		}
+		myWin.logFile = nil
+		err = os.Remove(filePath)
+		if err != nil {
+			fmt.Println(fmt.Errorf("deleteLogfile(): %w", err))
+		}
+		//fmt.Println("Log file deleted")
+	}
 }
