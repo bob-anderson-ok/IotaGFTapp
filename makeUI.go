@@ -6,11 +6,34 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"image/color"
 )
 
+type forcedVariant struct {
+	fyne.Theme
+	variant fyne.ThemeVariant
+}
+
+func (f *forcedVariant) Color(name fyne.ThemeColorName, _ fyne.ThemeVariant) color.Color {
+	return f.Theme.Color(name, f.variant)
+}
+
+func changeTheme(checked bool) {
+	if checked {
+		myWin.App.Settings().SetTheme(&forcedVariant{Theme: theme.DefaultTheme(), variant: theme.VariantDark})
+	} else {
+		myWin.App.Settings().SetTheme(&forcedVariant{Theme: theme.DefaultTheme(), variant: theme.VariantLight})
+
+	}
+}
+
 func (app *Config) makeUI() {
+
+	flashEdges = []FlashEdge{}
+
+	changeTheme(true) // Start with black theme
 
 	app.statusLine = makeStatusLine(app)
 
@@ -20,7 +43,8 @@ func (app *Config) makeUI() {
 
 	// Compose the left hand column element of the main Border layout
 	leftItem := container.NewVBox()
-	leftItem.Add(widget.NewButton("Help", func() { showHelp() }))
+	helpButton := widget.NewButton("Help", func() { showHelp() })
+	leftItem.Add(helpButton)
 
 	leftItem.Add(canvas.NewText("=========================", color.NRGBA{R: 180, A: 255}))
 
@@ -36,7 +60,13 @@ func (app *Config) makeUI() {
 	closePortButton := widget.NewButton("Close serial port", func() { closeCurrentPort() })
 	leftItem.Add(closePortButton)
 
+	leftItem.Add(widget.NewButton("Test plot", func() { testPngDisplay() }))
+
 	leftItem.Add(layout.NewSpacer())
+
+	blackThemeCheckbox := widget.NewCheck("Dark theme", func(checked bool) { changeTheme(checked) })
+	leftItem.Add(blackThemeCheckbox)
+	blackThemeCheckbox.SetChecked(true)
 
 	app.logCheckBox = widget.NewCheck("Log file wanted", func(checked bool) { setKeepLogFileFlag(checked) })
 	app.logCheckBox.SetChecked(true)
@@ -71,7 +101,7 @@ func (app *Config) makeUI() {
 	rightItem.Add(app.pubxCheckBox)
 
 	app.pCheckBox = widget.NewCheck("P", func(bool) {})
-	app.pCheckBox.SetChecked(false)
+	app.pCheckBox.SetChecked(true)
 	rightItem.Add(app.pCheckBox)
 
 	app.modeCheckBox = widget.NewCheck("MODE", func(bool) {})

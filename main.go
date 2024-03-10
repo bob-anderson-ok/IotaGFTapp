@@ -8,18 +8,43 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/widget"
 	"go.bug.st/serial"
+	"gonum.org/v1/plot/font"
 	"log"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"gonum.org/v1/plot"
+	"gonum.org/v1/plot/plotter"
+	"gonum.org/v1/plot/plotutil"
+	"gonum.org/v1/plot/vg"
 )
 
 const (
 	MaxSerialDataLines = 100_000
-	Version            = "1.0.0"
+	Version            = "1.0.2"
 )
+
+type TickStamp struct {
+	utcTime         string // UTC time when P sentence occurred
+	gpsTime         string // GPS time when P event occurred
+	runningTickTime int64  // runningTickTime at P event
+	tickTime        int64  // tickTime reported at P event
+}
+
+type FlashEdge struct {
+	edgeTime int64 // This is the runningTickTime at P event
+	on       bool
+}
+
+type OnePPSdata struct {
+	startTime       string      // UTC time of first valid 1pps reading
+	runningTickTime int64       // sum of all P event tickTime
+	tickStamp       []TickStamp // contains info for all P events
+	pDelta          []int64     // delta tickTime for all P events
+}
 
 type GPSdata struct {
 	date          string
@@ -31,6 +56,15 @@ type GPSdata struct {
 	altitude      string
 	altitudeUnits string
 	status        string
+	gpsUtcOffset  string
+	hour          int
+	minute        int
+	second        int
+	year          int
+	month         int
+	day           int
+	gpsTimestamp  string
+	utcTimestamp  string
 }
 
 type Config struct {
@@ -72,7 +106,11 @@ var helpText string
 //go:embed cmd.txt
 var cmdText string
 
+var onePPSdata OnePPSdata
+
 var gpsData GPSdata
+
+var flashEdges []FlashEdge
 
 var myWin Config
 
@@ -211,5 +249,107 @@ func deleteLogfile() {
 			fmt.Println(fmt.Errorf("deleteLogfile(): %w", err))
 		}
 		//fmt.Println("Log file deleted")
+	}
+}
+
+//func calc1ppsStats() {
+//	thresh := int64(4)
+//	deltas := onePPSdata.pDelta[1:]
+//	for i := 1; i < len(deltas); i++ {
+//		deltaDelta := deltas[i] - deltas[i-1]
+//		if !(-thresh < deltaDelta && deltaDelta < thresh) {
+//			fmt.Printf("At entry %d, found tick count change of %d\n", i, deltaDelta)
+//			fmt.Printf("UTC time: %s\n", onePPSdata.tickStamp[i].utcTime)
+//		}
+//	}
+//}
+
+func calcFlashEdgeTimes() {
+	nEdges := len(flashEdges)
+	fmt.Printf("%d flash edges available.\n", nEdges)
+	for i := range flashEdges {
+		for j := 0; j < len(onePPSdata.tickStamp); j++ {
+			// Find the onePPS time stamp that precedes the flash edge - we go past it, then back up 1 step
+			if onePPSdata.tickStamp[j].runningTickTime > flashEdges[i].edgeTime {
+				leftPoint := j - 1
+				rightPoint := j
+				for k := 0; k < 11; k++ {
+					newTimestamp := interpolateTimestamp(
+						flashEdges[i].edgeTime,
+						onePPSdata.tickStamp[leftPoint-k].runningTickTime,
+						onePPSdata.tickStamp[rightPoint+k].runningTickTime,
+						onePPSdata.tickStamp[leftPoint-k].utcTime,
+						onePPSdata.tickStamp[rightPoint+k].utcTime)
+					fmt.Println(newTimestamp)
+				}
+				break
+			}
+		}
+	}
+}
+
+func interpolateTimestamp(flashTime, t1, t2 int64, s1, s2 string) string {
+	// Calculate seconds since start
+	seconds1 := float64(calcDeltaSeconds(onePPSdata.startTime, s1))
+	seconds2 := float64(calcDeltaSeconds(onePPSdata.startTime, s2))
+
+	// Convert tick times to float64
+	time1 := float64(t1)
+	time2 := float64(t2)
+
+	// Calculate slope of seconds versus ticks
+	a := (seconds2 - seconds1) / (time2 - time1)
+
+	// Calculate f(flashTime)  output is time (in seconds) relative to seconds1
+	deltaTsecs := a * float64(flashTime-t1)
+
+	interpolatedTimestamp := calcAdderToTimestamp(s1, deltaTsecs)
+	return interpolatedTimestamp
+}
+
+func testPngDisplay() {
+	//calc1ppsStats()
+
+	calcFlashEdgeTimes()
+
+	buildPlot() // Writes judy.png in current working directory
+
+	pngWin := myWin.App.NewWindow("Test png display")
+	pngWin.Resize(fyne.Size{Height: 450, Width: 1400})
+
+	testImage := canvas.NewImageFromFile("judy.png")
+	pngWin.SetContent(testImage)
+	pngWin.CenterOnScreen()
+	pngWin.Show()
+
+}
+
+func buildPlot() {
+
+	n := len(onePPSdata.tickStamp)
+	myPts := make(plotter.XYs, n)
+	for i := range myPts {
+		timeInSeconds := calcDeltaSeconds(onePPSdata.startTime, onePPSdata.tickStamp[i].utcTime)
+		myPts[i].X = float64(timeInSeconds)
+		myPts[i].Y = float64(onePPSdata.tickStamp[i].runningTickTime)
+	}
+
+	plot.DefaultFont = font.Font{Typeface: "Liberation", Variant: "Sans", Style: 0, Weight: 3, Size: font.Points(20)}
+
+	plt := plot.New()
+	plt.Title.Text = "micro-time versus UTC time"
+	plt.X.Label.Text = "elapsed time (seconds)"
+	plt.Y.Label.Text = "micro-time (ticks)"
+
+	plotutil.DefaultGlyphShapes[0] = plotutil.Shape(5) // set point shape to filled circle
+
+	err := plotutil.AddScatters(plt, myPts)
+	if err != nil {
+		panic(err)
+	}
+
+	err = plt.Save(20*vg.Inch, 6*vg.Inch, "judy.png")
+	if err != nil {
+		panic(err)
 	}
 }
