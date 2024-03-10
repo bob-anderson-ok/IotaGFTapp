@@ -60,7 +60,9 @@ func (app *Config) makeUI() {
 	closePortButton := widget.NewButton("Close serial port", func() { closeCurrentPort() })
 	leftItem.Add(closePortButton)
 
-	leftItem.Add(widget.NewButton("Test plot", func() { testPngDisplay() }))
+	leftItem.Add(layout.NewSpacer())
+
+	leftItem.Add(widget.NewButton("Show 1pps history", func() { show1ppsHistory() }))
 
 	leftItem.Add(layout.NewSpacer())
 
@@ -68,9 +70,9 @@ func (app *Config) makeUI() {
 	leftItem.Add(blackThemeCheckbox)
 	blackThemeCheckbox.SetChecked(true)
 
-	app.logCheckBox = widget.NewCheck("Log file wanted", func(checked bool) { setKeepLogFileFlag(checked) })
-	app.logCheckBox.SetChecked(true)
-	leftItem.Add(app.logCheckBox)
+	//app.logCheckBox = widget.NewCheck("Log file wanted", func(checked bool) { setKeepLogFileFlag(checked) })
+	//app.logCheckBox.SetChecked(true)
+	//leftItem.Add(app.logCheckBox)
 
 	leftItem.Add(layout.NewSpacer())
 
@@ -170,9 +172,9 @@ func closeCurrentPort() {
 	myWin.spMutex.Unlock()
 }
 
-func setKeepLogFileFlag(checked bool) {
-	myWin.keepLogFile = checked
-}
+//func setKeepLogFileFlag(checked bool) {
+//	myWin.keepLogFile = checked
+//}
 
 func sendCommandToArduino() {
 	cmdGiven := myWin.cmdEntry.Text
@@ -190,7 +192,7 @@ func sendCommandToArduino() {
 
 func showCommandHelp() {
 	helpWin := myWin.App.NewWindow("Commands")
-	helpWin.Resize(fyne.Size{Height: 600, Width: 700})
+	helpWin.Resize(fyne.Size{Height: 700, Width: 700})
 	scrollableText := container.NewVScroll(widget.NewRichTextWithText(cmdText))
 	helpWin.SetContent(scrollableText)
 	helpWin.Show()

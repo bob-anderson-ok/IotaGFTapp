@@ -142,7 +142,7 @@ func parseSentence(sentence string, gpsInfo *GPSdata) ([]string, error) {
 		// The position of this code is important - it must follow the extraction of micro tick
 		// time from a P sentence so that onePPSdata.runningTickTime has been updated
 		if strings.Contains(sentence, "+}") { // process flashOn sentence
-			fmt.Printf("Flash on  @ %s  %s\n", sentence, gpsInfo.utcTimestamp)
+			//fmt.Printf("Flash on  @ %s  %s\n", sentence, gpsInfo.utcTimestamp)
 			flashEdges = append(flashEdges, FlashEdge{
 				edgeTime: onePPSdata.runningTickTime,
 				on:       true,
@@ -152,7 +152,7 @@ func parseSentence(sentence string, gpsInfo *GPSdata) ([]string, error) {
 		// The position of this code is important - it must follow the extraction of micro tick
 		// time from a P sentence so that onePPSdata.runningTickTime has been updated
 		if strings.Contains(sentence, "!}") { // process flashOff sentence
-			fmt.Printf("Flash off @ %s  %s\n", sentence, gpsInfo.utcTimestamp)
+			//fmt.Printf("Flash off @ %s  %s\n", sentence, gpsInfo.utcTimestamp)
 			flashEdges = append(flashEdges, FlashEdge{
 				edgeTime: onePPSdata.runningTickTime,
 				on:       false,

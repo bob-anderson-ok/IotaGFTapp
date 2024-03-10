@@ -3,21 +3,27 @@ General
 
     The IOTA GFT Flash Timer is based on an Arduino Mega2560 R3 with a custom shield.
 
-    The shield contains a GPS receiver (with a PPS output) and includes a wide dynamic
+    The shield contains a GPS receiver (with a 1PPS output) and includes a wide dynamic
     range LED intensity control to enable the LED flash intensity to be matched to the
     camera and telescope configuration while avoiding pixel saturation during flashes.
 
     In operation, the Arduino sends 'sentences' (strings terminated by CR LF). There are
     6 'standard' sentences: 4 NMEA GPS sentences plus a P (for pulse) and a MODE that
     reports the internal status of the GFT. There are other sentences that will be emitted
-    in response to 'events' such as error, a command entry, a command response, the LED
-    turning on or off, etc. These 'other' sentences are always displayed.
+    in response to 'events' such as a detected error, a command entry, a command response,
+    the LED turning on or off, etc. These 'other' sentences are always displayed but not
+    written to the standard log.
 
-    All output from the Arduino is recorded in a log file (.txt) automatically named
+    All output from the Arduino is recorded in a log file (LOG_GFT*.txt) automatically named
     from the date and time - UTC is used for ease of correlation with an occultation time.
 
-    Sometimes, this log file is not wanted. There is a checkbox to allow the log file
-    recording to be suppressed.
+    All flash edges that happen during the time this app is active are given UTC timestamps
+    and written to a log file (FLASH_EDGE_TIMES*.txt).
+
+    The flash edge log file IS WRITTEN WHEN THE APP IS CLOSED!
+
+    Log files are always created in the directory where the app is placed (started from).
+
 
 Top line status bar
 
@@ -71,13 +77,16 @@ Close serial port (button)
     reopened  If you really need to stop the serial communication in this case,
     just unplug it.
 
-(check box) Log file wanted
+Show 1pps history (button)
 
-    Log files are always created in the operating directory of the app when the app
-    is started. If this log file is not wanted, uncheck this box. That will delete the
-    currently being written-to log file when the app is closed, so you can change your mind.
-    This tool can be used to avoid 'clutter' in the directory when doing tests before an
-    observation.
+    Use this button to view a plot of 1pps pulses versus time. This is a crude
+    quality control tool but any deviations from a straight line or, most important,
+    any gaps (periods of time when GPS was lost).
+
+(check box) Dark theme
+
+    Dark theme is selected by default as this is likely to be the desirable
+    theme during and observation. Uncheck this box to return to light theme.
 
 Clear output (button)
 

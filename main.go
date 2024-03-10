@@ -24,7 +24,7 @@ import (
 
 const (
 	MaxSerialDataLines = 100_000
-	Version            = "1.0.2"
+	Version            = "1.0.3"
 )
 
 type TickStamp struct {
@@ -68,36 +68,37 @@ type GPSdata struct {
 }
 
 type Config struct {
-	App             fyne.App
-	MainWindow      fyne.Window
-	HelpViewer      *widget.RichText
-	statusLine      *fyne.Container
-	statusStatus    *canvas.Text
-	latitudeStatus  *canvas.Text
-	longitudeStatus *canvas.Text
-	altitudeStatus  *canvas.Text
-	dateTimeStatus  *canvas.Text
-	comPortInUse    *widget.Label
-	portsAvailable  []string
-	autoScroll      *widget.Check
-	textOut         []string
-	textOutDisplay  *widget.List
-	selectComPort   *widget.Select
-	comPortName     string
-	curBaudRate     int
-	serialPort      serial.Port
-	spMutex         sync.Mutex
-	lastPvalue      int64
-	logCheckBox     *widget.Check
-	gpggaCheckBox   *widget.Check
-	gprmcCheckBox   *widget.Check
-	gpdtmCheckBox   *widget.Check
-	pubxCheckBox    *widget.Check
-	pCheckBox       *widget.Check
-	modeCheckBox    *widget.Check
-	cmdEntry        *widget.Entry
-	logFile         *os.File
-	keepLogFile     bool
+	App                  fyne.App
+	MainWindow           fyne.Window
+	HelpViewer           *widget.RichText
+	statusLine           *fyne.Container
+	statusStatus         *canvas.Text
+	latitudeStatus       *canvas.Text
+	longitudeStatus      *canvas.Text
+	altitudeStatus       *canvas.Text
+	dateTimeStatus       *canvas.Text
+	comPortInUse         *widget.Label
+	portsAvailable       []string
+	autoScroll           *widget.Check
+	textOut              []string
+	textOutDisplay       *widget.List
+	selectComPort        *widget.Select
+	comPortName          string
+	curBaudRate          int
+	serialPort           serial.Port
+	spMutex              sync.Mutex
+	lastPvalue           int64
+	logCheckBox          *widget.Check
+	gpggaCheckBox        *widget.Check
+	gprmcCheckBox        *widget.Check
+	gpdtmCheckBox        *widget.Check
+	pubxCheckBox         *widget.Check
+	pCheckBox            *widget.Check
+	modeCheckBox         *widget.Check
+	cmdEntry             *widget.Entry
+	logFile              *os.File
+	flashEdgeLogfilePath *os.File
+	keepLogFile          bool
 }
 
 //go:embed help.txt
@@ -115,6 +116,7 @@ var flashEdges []FlashEdge
 var myWin Config
 
 var logfilePath string
+var flashEdgeLogfilePath string
 
 // The following default baudrate can be changed by a command line argument
 var baudrate = 250000
@@ -153,6 +155,7 @@ func main() {
 
 	// Form the full path to the logfile
 	logfilePath = fmt.Sprintf("%s\\LOG_GFT_%s.txt", workDir, timestamp)
+	flashEdgeLogfilePath = fmt.Sprintf("%s\\FLASH_EDGE_TIMES_%s.txt", workDir, timestamp)
 
 	// create and open the logFile
 	logFile, err1 := os.Create(logfilePath)
@@ -161,7 +164,20 @@ func main() {
 	}
 	myWin.logFile = logFile
 
-	// close the file for sure when app exits
+	// create and open the flash edge logfile
+	flashLogFile, err1 := os.Create(flashEdgeLogfilePath)
+	if err1 != nil {
+		log.Fatal(err1)
+	}
+	myWin.flashEdgeLogfilePath = flashLogFile
+
+	// close the log files for sure when app exits
+	defer func(flashLogFile *os.File) {
+		err := flashLogFile.Close()
+		if err != nil {
+		}
+	}(flashLogFile)
+
 	defer func(logFile *os.File) {
 		err := logFile.Close()
 		if err != nil {
@@ -173,7 +189,7 @@ func main() {
 	// Build the GUI
 	myWin.makeUI()
 
-	defer deleteLogfile()
+	//defer deleteLogfile()
 
 	newLine := fmt.Sprintf("... the serial port will be opened at 8,N,1 and %d baudrate.", baudrate)
 	addToTextOutDisplay(newLine)
@@ -206,6 +222,7 @@ func main() {
 		}
 	}
 	myWin.spMutex.Unlock()
+	calcFlashEdgeTimes() // These get written to the flashEdgeLogfile
 }
 
 func addToTextOutDisplay(msg string) {
@@ -233,54 +250,50 @@ func initializeStartingWindow(myWin *Config) {
 	myWin.MainWindow.CenterOnScreen()
 }
 
-func deleteLogfile() {
-	//fmt.Println("State of logCheckBox: ", checked)
-	if !myWin.keepLogFile {
-		//fmt.Println("Deleting log file")
-		//myWin.logCheckBox.Disable()
-		filePath := myWin.logFile.Name()
-		err := myWin.logFile.Close()
-		if err != nil {
-			fmt.Println(fmt.Errorf("deleteLogfile(): %w", err))
-		}
-		myWin.logFile = nil
-		err = os.Remove(filePath)
-		if err != nil {
-			fmt.Println(fmt.Errorf("deleteLogfile(): %w", err))
-		}
-		//fmt.Println("Log file deleted")
-	}
-}
-
-//func calc1ppsStats() {
-//	thresh := int64(4)
-//	deltas := onePPSdata.pDelta[1:]
-//	for i := 1; i < len(deltas); i++ {
-//		deltaDelta := deltas[i] - deltas[i-1]
-//		if !(-thresh < deltaDelta && deltaDelta < thresh) {
-//			fmt.Printf("At entry %d, found tick count change of %d\n", i, deltaDelta)
-//			fmt.Printf("UTC time: %s\n", onePPSdata.tickStamp[i].utcTime)
+//func deleteLogfile() {
+//	//fmt.Println("State of logCheckBox: ", checked)
+//	if !myWin.keepLogFile {
+//		//fmt.Println("Deleting log file")
+//		//myWin.logCheckBox.Disable()
+//		filePath := myWin.logFile.Name()
+//		err := myWin.logFile.Close()
+//		if err != nil {
+//			fmt.Println(fmt.Errorf("deleteLogfile(): %w", err))
 //		}
+//		myWin.logFile = nil
+//		err = os.Remove(filePath)
+//		if err != nil {
+//			fmt.Println(fmt.Errorf("deleteLogfile(): %w", err))
+//		}
+//		//fmt.Println("Log file deleted")
 //	}
 //}
 
 func calcFlashEdgeTimes() {
-	nEdges := len(flashEdges)
-	fmt.Printf("%d flash edges available.\n", nEdges)
+	//nEdges := len(flashEdges)
+	//fmt.Printf("%d flash edges available.\n", nEdges)
 	for i := range flashEdges {
 		for j := 0; j < len(onePPSdata.tickStamp); j++ {
 			// Find the onePPS time stamp that precedes the flash edge - we go past it, then back up 1 step
 			if onePPSdata.tickStamp[j].runningTickTime > flashEdges[i].edgeTime {
 				leftPoint := j - 1
 				rightPoint := j
-				for k := 0; k < 11; k++ {
-					newTimestamp := interpolateTimestamp(
-						flashEdges[i].edgeTime,
-						onePPSdata.tickStamp[leftPoint-k].runningTickTime,
-						onePPSdata.tickStamp[rightPoint+k].runningTickTime,
-						onePPSdata.tickStamp[leftPoint-k].utcTime,
-						onePPSdata.tickStamp[rightPoint+k].utcTime)
-					fmt.Println(newTimestamp)
+				newTimestamp := interpolateTimestamp(
+					flashEdges[i].edgeTime,
+					onePPSdata.tickStamp[leftPoint].runningTickTime,
+					onePPSdata.tickStamp[rightPoint].runningTickTime,
+					onePPSdata.tickStamp[leftPoint].utcTime,
+					onePPSdata.tickStamp[rightPoint].utcTime)
+
+				edgeStr := ""
+				if flashEdges[i].on {
+					edgeStr = fmt.Sprintf("%d on  %s\n", i+1, newTimestamp) // Count flash edges starting from 1
+				} else {
+					edgeStr = fmt.Sprintf("%d off %s\n", i+1, newTimestamp)
+				}
+				_, fileErr := myWin.flashEdgeLogfilePath.WriteString(edgeStr)
+				if fileErr != nil {
+					fmt.Println(fmt.Errorf("calcFlashEdgeTimes(): %w", fileErr))
 				}
 				break
 			}
@@ -307,10 +320,7 @@ func interpolateTimestamp(flashTime, t1, t2 int64, s1, s2 string) string {
 	return interpolatedTimestamp
 }
 
-func testPngDisplay() {
-	//calc1ppsStats()
-
-	calcFlashEdgeTimes()
+func show1ppsHistory() {
 
 	buildPlot() // Writes judy.png in current working directory
 
