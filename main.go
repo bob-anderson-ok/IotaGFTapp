@@ -24,7 +24,7 @@ import (
 
 const (
 	MaxSerialDataLines = 100_000
-	Version            = "1.0.6"
+	Version            = "1.0.8"
 )
 
 type TickStamp struct {

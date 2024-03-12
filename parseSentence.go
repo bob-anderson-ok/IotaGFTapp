@@ -95,10 +95,10 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 		return ans, nil
 	}
 
-	pSentence :=
-		strings.Contains(sentence, "P}") ||
-			strings.Contains(sentence, "+}") ||
-			strings.Contains(sentence, "!}")
+	pSentence := strings.Contains(sentence, "P}") ||
+		strings.Contains(sentence, "E}") ||
+		strings.Contains(sentence, "+}") ||
+		strings.Contains(sentence, "!}")
 
 	if pSentence { // process P sentence
 		tickPulse := strings.Contains(sentence, "P}")

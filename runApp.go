@@ -16,6 +16,12 @@ func runApp(myWin *Config) {
 
 	waitingForNestFinish := false
 
+	var ans []string
+	var err error
+	var parts []string
+	var partsSaved []string
+	var nester, nestee string
+
 	for {
 		if myWin.serialPort != nil {
 			sentence := <-sentenceChan // Block until a sentence is returned by go getNextSentence(sentenceChan)
@@ -35,25 +41,24 @@ func runApp(myWin *Config) {
 				}
 			}
 
-			var ans []string
-			var err error
-			var parts []string
-			var nester, nestee string
-
 			if waitingForNestFinish {
 				waitingForNestFinish = false
-				nestee = "{" + parts[1] + sentence
+				nestee = "{" + partsSaved[1] + sentence
 				ans, err = sendSentenceToBeParsed(nestee, ans, err)
+				displayEnabledItems(ans)
 				ans, err = sendSentenceToBeParsed(nester, ans, err)
+				displayEnabledItems(ans)
 				continue
 			}
 
-			// Test for nested P and E pulse sentences
+			// Test for nested P and E pulse sentences - there will be exactly 2 { characters in the 'nest'
 			parts = strings.Split(sentence, "{")
 			if len(parts) > 2 {
 				// We have a 'nested pulse' situation
 				fmt.Println("Nest found:", sentence)
 				nester = "{" + parts[2]
+				partsSaved = make([]string, len(parts))
+				copy(partsSaved, parts)
 				waitingForNestFinish = true
 				continue
 			}
@@ -180,6 +185,9 @@ func getNextSentence(sc chan string) string {
 	// This is the character sequence that separates 'sentences' from the Arduino
 	boundaryMarker := "\r\n"
 
+	// Test code for nested P and E sentences
+	//sentenceNumber := 0
+
 	// Characters coming in from the serial port arrive in various size
 	// 'chunks' that are not on any particular boundary. We accumulate
 	// those 'chunks' until a boundaryMarker appears somewhere in sumChunks
@@ -223,6 +231,12 @@ func getNextSentence(sc chan string) string {
 			if strings.Contains(sumChunks, boundaryMarker) {
 				sentence, sumChunks, _ = strings.Cut(sumChunks, boundaryMarker)
 				if started {
+					// Test code for nested P and E sentences
+					//sentenceNumber += 1
+					//if sentenceNumber == 20 {
+					//	sc <- "{002F{004D92C8 P}*76"
+					//	sc <- "0AE7 P}*01"
+					//}
 					sc <- sentence
 				} else {
 					if strings.Contains(sentence, "[STARTING!]") {
