@@ -14,12 +14,14 @@ func runApp(myWin *Config) {
 	// for dealing with a non-responsive serial port and returns "timeout" as a sentence in that case.
 	go getNextSentence(sentenceChan)
 
+	waitingForNestFinish := false
+
 	for {
 		if myWin.serialPort != nil {
 			sentence := <-sentenceChan // Block until a sentence is returned by go getNextSentence(sentenceChan)
 
 			// A 'sentence' is everything up to, but not including, a crlf sequence.
-			// The last three characters of the 'sentence' are a checksum *xx
+			// The last three characters of the 'sentence' are a checksum *xx (even for a 'nest')
 			if sentence == "timeout" {
 				addToTextOutDisplay(fmt.Sprintf("Serial port %s is not responding.", myWin.comPortName))
 				continue
@@ -35,13 +37,28 @@ func runApp(myWin *Config) {
 
 			var ans []string
 			var err error
+			var parts []string
+			var nester, nestee string
 
-			n := len(sentence)
-			checksum := sentence[n-3:]
-			ans, err = parseSentence(sentence[0:n-3], checksum, &gpsData)
-			if err != nil {
-				addToTextOutDisplay(fmt.Sprintf("%v", err))
+			if waitingForNestFinish {
+				waitingForNestFinish = false
+				nestee = "{" + parts[1] + sentence
+				ans, err = sendSentenceToBeParsed(nestee, ans, err)
+				ans, err = sendSentenceToBeParsed(nester, ans, err)
+				continue
 			}
+
+			// Test for nested P and E pulse sentences
+			parts = strings.Split(sentence, "{")
+			if len(parts) > 2 {
+				// We have a 'nested pulse' situation
+				fmt.Println("Nest found:", sentence)
+				nester = "{" + parts[2]
+				waitingForNestFinish = true
+				continue
+			}
+
+			ans, err = sendSentenceToBeParsed(sentence, ans, err)
 
 			updateStatusLine(gpsData)
 
@@ -66,6 +83,16 @@ func runApp(myWin *Config) {
 	}
 }
 
+func sendSentenceToBeParsed(sentence string, ans []string, err error) ([]string, error) {
+	n := len(sentence)
+	checksum := sentence[n-3:]
+	ans, err = parseSentence(sentence[0:n-3], checksum, &gpsData)
+	if err != nil {
+		addToTextOutDisplay(fmt.Sprintf("%v", err))
+	}
+	return ans, err
+}
+
 func updateStatusLine(gpsInfo GPSdata) {
 	months := map[string]string{
 		"01": "January",
@@ -84,7 +111,7 @@ func updateStatusLine(gpsInfo GPSdata) {
 
 	if gpsInfo.status != "" {
 		myWin.statusStatus.Text = "Status: " + gpsInfo.status
-		if gpsInfo.status == "TimeValid" {
+		if strings.Contains(gpsInfo.status, "TimeValid") {
 			myWin.statusStatus.Color = color.NRGBA{G: 180, A: 255}
 		} else {
 			myWin.statusStatus.Color = color.NRGBA{R: 180, A: 255}

@@ -90,7 +90,7 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 		if len(parts) < 2 {
 			return ans, errors.New("parseSentence(): split of MODE sentence on space did not give 2 parts")
 		}
-		gpsInfo.status = removeTrailingCharacter(parts[1])
+		gpsInfo.status = sentence[6 : len(sentence)-1]
 		ans = []string{"MODE", sentence}
 		return ans, nil
 	}
