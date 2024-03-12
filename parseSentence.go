@@ -11,9 +11,25 @@ import (
 
 const hexChar = "0123456789ABCDEF"
 
-func parseSentence(sentence string, gpsInfo *GPSdata) ([]string, error) {
+func calcChecksum(str string) (string, uint8) {
+	checksum := uint8(0)
+	for _, c := range str {
+		char := uint8(c)
+		checksum = checksum ^ char
+	}
+	return fmt.Sprintf("*%02X", checksum), checksum
+}
+
+func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error) {
 	ans := []string{""}
 	var deltaP int64
+
+	chkSum, _ := calcChecksum(sentence)
+
+	if chkSum != checksum {
+		fmt.Printf("%s  %s\n", checksum, chkSum)
+		return ans, errors.New("parseSentence() found bad checksum")
+	}
 
 	if strings.Contains(sentence, "$") { // process nmea sentence
 		parts := strings.Split(sentence, " ")
@@ -27,7 +43,7 @@ func parseSentence(sentence string, gpsInfo *GPSdata) ([]string, error) {
 		payload := removeTrailingCharacter(parts[1])
 
 		if !isChecksumValid(payload) {
-			return ans, errors.New("parseSentence(): failed checksum test")
+			return ans, errors.New("parseSentence() found bad checksum")
 		}
 
 		parts = strings.Split(payload, ",")

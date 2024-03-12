@@ -18,6 +18,8 @@ func runApp(myWin *Config) {
 		if myWin.serialPort != nil {
 			sentence := <-sentenceChan // Block until a sentence is returned by go getNextSentence(sentenceChan)
 
+			// A 'sentence' is everything up to, but not including, a crlf sequence.
+			// The last three characters of the 'sentence' are a checksum *xx
 			if sentence == "timeout" {
 				addToTextOutDisplay(fmt.Sprintf("Serial port %s is not responding.", myWin.comPortName))
 				continue
@@ -31,7 +33,12 @@ func runApp(myWin *Config) {
 				}
 			}
 
-			ans, err := parseSentence(sentence, &gpsData)
+			var ans []string
+			var err error
+
+			n := len(sentence)
+			checksum := sentence[n-3:]
+			ans, err = parseSentence(sentence[0:n-3], checksum, &gpsData)
 			if err != nil {
 				addToTextOutDisplay(fmt.Sprintf("%v", err))
 			}
@@ -140,6 +147,7 @@ func updateStatusLine(gpsInfo GPSdata) {
 }
 
 func getNextSentence(sc chan string) string {
+	// A 'sentence' is everything that precedes a crlf sequence
 	started := false // remains false until Arduino emits "[STARTING!]"
 
 	// This is the character sequence that separates 'sentences' from the Arduino
