@@ -51,11 +51,11 @@ func runApp(myWin *Config) {
 				continue
 			}
 
-			// Test for nested P and E pulse sentences - there will be exactly 2 { characters in the 'nest'
+			// Test for nested P and E pulse sentences or NMEA and E (there will be exactly 2 { characters in the 'nest')
 			parts = strings.Split(sentence, "{")
 			if len(parts) > 2 {
 				// We have a 'nested pulse' situation
-				fmt.Println("Nest found:", sentence)
+				//fmt.Println("Nest found:", sentence)
 				nester = "{" + parts[2]
 				partsSaved = make([]string, len(parts))
 				copy(partsSaved, parts)
@@ -236,6 +236,8 @@ func getNextSentence(sc chan string) string {
 					//if sentenceNumber == 20 {
 					//	sc <- "{002F{004D92C8 P}*76"
 					//	sc <- "0AE7 P}*01"
+					//sc <- "{0033C29E $GPDTM,W84,,{0050BD13 P}*77"
+					//sc <- "0.0,N,0.0,E,0.0,W84*6F}*3A"
 					//}
 					sc <- sentence
 				} else {

@@ -81,41 +81,59 @@ func (app *Config) makeUI() {
 	app.autoScroll.SetChecked(true)
 	leftItem.Add(app.autoScroll)
 
-	rightItem := container.NewVBox()
-	rightItem.Add(layout.NewSpacer())
+	column1 := container.NewVBox()
 
-	rightItem.Add(widget.NewLabel("Display items"))
+	column1.Add(layout.NewSpacer())
+
+	column1.Add(widget.NewLabel("Display items"))
 
 	app.gpggaCheckBox = widget.NewCheck("$GPGGA", func(bool) {})
 	app.gpggaCheckBox.SetChecked(false)
-	rightItem.Add(app.gpggaCheckBox)
+	column1.Add(app.gpggaCheckBox)
 
 	app.gprmcCheckBox = widget.NewCheck("$GPRMC", func(bool) {})
 	app.gprmcCheckBox.SetChecked(false)
-	rightItem.Add(app.gprmcCheckBox)
+	column1.Add(app.gprmcCheckBox)
 
 	app.gpdtmCheckBox = widget.NewCheck("$GPDTM", func(bool) {})
 	app.gpdtmCheckBox.SetChecked(false)
-	rightItem.Add(app.gpdtmCheckBox)
+	column1.Add(app.gpdtmCheckBox)
 
 	app.pubxCheckBox = widget.NewCheck("$PUBX", func(bool) {})
 	app.pubxCheckBox.SetChecked(false)
-	rightItem.Add(app.pubxCheckBox)
+	column1.Add(app.pubxCheckBox)
 
 	app.pCheckBox = widget.NewCheck("P", func(bool) {})
 	app.pCheckBox.SetChecked(true)
-	rightItem.Add(app.pCheckBox)
+	column1.Add(app.pCheckBox)
 
 	app.modeCheckBox = widget.NewCheck("MODE", func(bool) {})
 	app.modeCheckBox.SetChecked(false)
-	rightItem.Add(app.modeCheckBox)
+	column1.Add(app.modeCheckBox)
 
-	rightItem.Add(layout.NewSpacer())
+	column1.Add(layout.NewSpacer())
+
+	flashIntensitySlider := widget.NewSlider(0, 3*255)
+	flashIntensitySlider.Value = 400
+	flashIntensitySlider.Orientation = 1 // Vertical
+	flashIntensitySlider.OnChangeEnded = func(value float64) {
+		processFlashIntensitySliderChange(value)
+	}
+	flashIntensitySlider.Hidden = true
+
+	myWin.flashIntensitySlider = flashIntensitySlider
+
+	ledOnCheckBox := widget.NewCheck("LED on", func(clicked bool) { showIntensitySlider(clicked) })
+	ledOnCheckBox.SetChecked(false)
+	column2 := container.NewVBox()
+	column2.Add(layout.NewSpacer())
+	column2.Add(ledOnCheckBox)
+	rightItem := container.NewHBox(column1, column2, flashIntensitySlider)
 
 	// Compose bottom element of the main Border layout
 
 	app.cmdEntry = widget.NewEntry()
-	app.cmdEntry.OnSubmitted = func(str string) { sendCommandToArduino() }
+	app.cmdEntry.OnSubmitted = func(str string) { sendCommandToArduino("") }
 
 	bottomEntry := container.NewBorder( // top, bottom, left, right, center
 		nil,
@@ -153,6 +171,19 @@ func (app *Config) makeUI() {
 	app.MainWindow.SetContent(content)
 }
 
+func showIntensitySlider(clicked bool) {
+	myWin.flashIntensitySlider.Hidden = !clicked
+}
+
+func processFlashIntensitySliderChange(value float64) {
+	v := int64(value)
+	ledRange := v / 256
+	level := v - ledRange*255
+	fmt.Printf("range: %d  level: %d\n", ledRange, level)
+	sendCommandToArduino(fmt.Sprintf("flash range %d", ledRange))
+	sendCommandToArduino(fmt.Sprintf("flash level %d", level))
+}
+
 func closeCurrentPort() {
 	myWin.spMutex.Lock()
 	if myWin.serialPort != nil {
@@ -176,9 +207,21 @@ func closeCurrentPort() {
 //	myWin.keepLogFile = checked
 //}
 
-func sendCommandToArduino() {
-	cmdGiven := myWin.cmdEntry.Text
-	cmdGiven += "\r\n"
+func sendCommandToArduino(extCmd string) {
+	var cmdGiven string
+	if extCmd != "" {
+		cmdGiven = extCmd
+	} else {
+		cmdGiven = myWin.cmdEntry.Text
+	}
+
+	// Calculate checksum
+	checkSum := byte(0)
+	for _, char := range cmdGiven {
+		checkSum ^= byte(char)
+	}
+
+	cmdGiven += fmt.Sprintf("*%02X\r\n", checkSum)
 	myWin.spMutex.Lock()
 	if myWin.serialPort != nil {
 		_, err := myWin.serialPort.Write([]byte(cmdGiven))

@@ -24,7 +24,7 @@ import (
 
 const (
 	MaxSerialDataLines = 100_000
-	Version            = "1.0.8"
+	Version            = "1.0.9"
 )
 
 type TickStamp struct {
@@ -69,6 +69,7 @@ type GPSdata struct {
 
 type Config struct {
 	App                  fyne.App
+	flashIntensitySlider *widget.Slider
 	MainWindow           fyne.Window
 	HelpViewer           *widget.RichText
 	statusLine           *fyne.Container
