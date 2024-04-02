@@ -24,10 +24,11 @@ func runApp(myWin *Config) {
 
 	for {
 		if myWin.serialPort != nil {
-			sentence := <-sentenceChan // Block until a sentence is returned by go getNextSentence(sentenceChan)
-
 			// A 'sentence' is everything up to, but not including, a crlf sequence.
 			// The last three characters of the 'sentence' are a checksum *xx (even for a 'nest')
+			// The checksum has not yet been validated at this point.
+			sentence := <-sentenceChan // Block until a sentence is returned by go getNextSentence(sentenceChan)
+
 			if sentence == "timeout" {
 				addToTextOutDisplay(fmt.Sprintf("Serial port %s is not responding.", myWin.comPortName))
 				continue
@@ -51,7 +52,8 @@ func runApp(myWin *Config) {
 				continue
 			}
 
-			// Test for nested P and E pulse sentences or NMEA and E (there will be exactly 2 { characters in the 'nest')
+			// Test for nested P, E, +, or - flash phrases pulse
+			// or NMEA and E (there will be exactly 2 { characters in the 'nest')
 			parts = strings.Split(sentence, "{")
 			if len(parts) > 2 {
 				// We have a 'nested pulse' situation
@@ -63,6 +65,7 @@ func runApp(myWin *Config) {
 				continue
 			}
 
+			// This call checks the checksum
 			ans, err = sendSentenceToBeParsed(sentence, ans, err)
 
 			updateStatusLine(gpsData)
@@ -186,7 +189,7 @@ func getNextSentence(sc chan string) string {
 	boundaryMarker := "\r\n"
 
 	// Test code for nested P and E sentences
-	//sentenceNumber := 0
+	sentenceNumber := 0
 
 	// Characters coming in from the serial port arrive in various size
 	// 'chunks' that are not on any particular boundary. We accumulate
@@ -232,13 +235,13 @@ func getNextSentence(sc chan string) string {
 				sentence, sumChunks, _ = strings.Cut(sumChunks, boundaryMarker)
 				if started {
 					// Test code for nested P and E sentences
-					//sentenceNumber += 1
-					//if sentenceNumber == 20 {
-					//	sc <- "{002F{004D92C8 P}*76"
-					//	sc <- "0AE7 P}*01"
-					//sc <- "{0033C29E $GPDTM,W84,,{0050BD13 P}*77"
-					//sc <- "0.0,N,0.0,E,0.0,W84*6F}*3A"
-					//}
+					sentenceNumber += 0 // if 0, then test code is disabled
+					if sentenceNumber == 20 {
+						//sc <- "{002F{004D92C8 P}*76"
+						//sc <- "0AE7 P}*01"
+						sc <- "{0033C29E $GPDTM,W84,,{0050BD13 P}*77"
+						sc <- "0.0,N,0.0,E,0.0,W84*6F}*3A"
+					}
 					sc <- sentence
 				} else {
 					if strings.Contains(sentence, "[STARTING!]") {

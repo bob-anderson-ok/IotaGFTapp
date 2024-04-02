@@ -28,7 +28,16 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 
 	if chkSum != checksum {
 		fmt.Printf("%s  %s\n", checksum, chkSum)
-		return ans, errors.New("parseSentence() found bad checksum")
+		return ans, errors.New("parseSentence() found bad checksum in " + sentence)
+	}
+
+	// Test for an embedded command response in the sentence (assumed to be an NMEA)
+	parts := strings.Split(sentence, "[]")
+	if len(parts) == 3 {
+		// We have an embedded command response. We simply remove it and print it out.
+		sentence = parts[0] + parts[2]
+		embeddedCommandResponse := parts[1]
+		fmt.Printf("embedded command response: %s\n", embeddedCommandResponse)
 	}
 
 	if strings.Contains(sentence, "$") { // process nmea sentence
@@ -43,7 +52,7 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 		payload := removeTrailingCharacter(parts[1])
 
 		if !isChecksumValid(payload) {
-			return ans, errors.New("parseSentence() found bad checksum")
+			return ans, errors.New("parseSentence() found bad checksum in " + payload)
 		}
 
 		parts = strings.Split(payload, ",")
@@ -122,6 +131,10 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 				deltaP = 0xffffffff - myWin.lastPvalue + value + 1
 			}
 			myWin.lastPvalue = value
+			//if deltaP > 2_200_000 {
+			//	fmt.Printf("too big deltaP: %d\n", deltaP)
+			//}
+
 			onePPSdata.runningTickTime += deltaP
 			onePPSdata.pDelta = append(onePPSdata.pDelta, deltaP)
 			if tickPulse {

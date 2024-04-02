@@ -173,13 +173,19 @@ func (app *Config) makeUI() {
 
 func showIntensitySlider(clicked bool) {
 	myWin.flashIntensitySlider.Hidden = !clicked
+	if clicked {
+		processFlashIntensitySliderChange(myWin.flashIntensitySlider.Value)
+		sendCommandToArduino("led on")
+	} else {
+		sendCommandToArduino("led off")
+	}
 }
 
 func processFlashIntensitySliderChange(value float64) {
 	v := int64(value)
 	ledRange := v / 256
 	level := v - ledRange*255
-	fmt.Printf("range: %d  level: %d\n", ledRange, level)
+	//fmt.Printf("range: %d  level: %d\n", ledRange, level)
 	sendCommandToArduino(fmt.Sprintf("flash range %d", ledRange))
 	sendCommandToArduino(fmt.Sprintf("flash level %d", level))
 }

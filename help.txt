@@ -108,3 +108,10 @@ Down the right hand side there is a set of checkboxes. These enable/disable the
 display of the 6 standard sentence types that are emitted by the GFT. All other
 sentence types always display. NOTE: all sentences are always written to the
 log file whether they are displayed or not.
+
+For setting the LED flash intensity conveniently, there is a checkbox labeled 'LED on'
+at the lower right corner. When this is checked, a vertical slider appears at the
+right edge of the window. Dragging this slider will change the flash intensity
+by changing the effective current to the LED over a range of about 10,000 to 1
+
+BE SURE TO TURN THE LED BACK OFF BEFORE RECORDING THE OBSERVATION!
