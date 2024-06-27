@@ -71,14 +71,17 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 			gpsInfo.lonDirection = parts[6]
 			gpsInfo.date = parts[9]
 
-			gpsInfo.hour, _ = strconv.Atoi(gpsInfo.timeUTC[0:2])
-			gpsInfo.minute, _ = strconv.Atoi(gpsInfo.timeUTC[2:4])
-			gpsInfo.second, _ = strconv.Atoi(gpsInfo.timeUTC[4:6])
-			gpsInfo.year, _ = strconv.Atoi(gpsInfo.date[4:6])
-			gpsInfo.year += 2000
-			gpsInfo.month, _ = strconv.Atoi(gpsInfo.date[2:4])
-			gpsInfo.day, _ = strconv.Atoi(gpsInfo.date[0:2])
-
+			if len(gpsInfo.timeUTC) < 2 {
+				return []string{"$GPRMC", sentence}, nil
+			} else {
+				gpsInfo.hour, _ = strconv.Atoi(gpsInfo.timeUTC[0:2])
+				gpsInfo.minute, _ = strconv.Atoi(gpsInfo.timeUTC[2:4])
+				gpsInfo.second, _ = strconv.Atoi(gpsInfo.timeUTC[4:6])
+				gpsInfo.year, _ = strconv.Atoi(gpsInfo.date[4:6])
+				gpsInfo.year += 2000
+				gpsInfo.month, _ = strconv.Atoi(gpsInfo.date[2:4])
+				gpsInfo.day, _ = strconv.Atoi(gpsInfo.date[0:2])
+			}
 			return []string{"$GPRMC", sentence}, nil
 		case "$GPDTM":
 			return []string{"$GPDTM", sentence}, nil
@@ -124,16 +127,13 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 		}
 
 		// Extract the micro tick time of the current pulse
-		if myWin.lastPvalue != 0 { // We're past the initial P sentence
+		if myWin.gotFirst1PPS { // We're past the initial P sentence
 			if value > myWin.lastPvalue {
 				deltaP = value - myWin.lastPvalue
 			} else {
 				deltaP = 0xffffffff - myWin.lastPvalue + value + 1
 			}
 			myWin.lastPvalue = value
-			//if deltaP > 2_200_000 {
-			//	fmt.Printf("too big deltaP: %d\n", deltaP)
-			//}
 
 			onePPSdata.runningTickTime += deltaP
 			onePPSdata.pDelta = append(onePPSdata.pDelta, deltaP)
@@ -151,6 +151,7 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 			// It is possible at startup that 1pps occurs before the nmea sentence with time info.
 			// We just skip that one.
 			if gpsInfo.utcTimestamp != "" {
+				myWin.gotFirst1PPS = true
 				onePPSdata.startTime = gpsInfo.utcTimestamp
 				deltaP = 0
 				onePPSdata.pDelta = append(onePPSdata.pDelta, deltaP)

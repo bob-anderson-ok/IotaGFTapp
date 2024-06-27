@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"image/color"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -17,11 +18,12 @@ func runApp(myWin *Config) {
 	waitingForNestFinish := false
 
 	var ans []string
+	var checksumString string
 	var err error
 	var parts []string
 	var partsSaved []string
 	var nester, nestee string
-
+	var tickCounter int
 	for {
 		if myWin.serialPort != nil {
 			// A 'sentence' is everything up to, but not including, a crlf sequence.
@@ -45,10 +47,10 @@ func runApp(myWin *Config) {
 			if waitingForNestFinish {
 				waitingForNestFinish = false
 				nestee = "{" + partsSaved[1] + sentence
-				ans, err = sendSentenceToBeParsed(nestee, ans, err)
-				displayEnabledItems(ans)
-				ans, err = sendSentenceToBeParsed(nester, ans, err)
-				displayEnabledItems(ans)
+				ans, checksumString, err = sendSentenceToBeParsed(nestee, ans, err)
+				displayEnabledItems(ans, checksumString)
+				ans, checksumString, err = sendSentenceToBeParsed(nester, ans, err)
+				displayEnabledItems(ans, checksumString)
 				continue
 			}
 
@@ -66,11 +68,52 @@ func runApp(myWin *Config) {
 			}
 
 			// This call checks the checksum
-			ans, err = sendSentenceToBeParsed(sentence, ans, err)
+			ans, checksumString, err = sendSentenceToBeParsed(sentence, ans, err)
 
 			updateStatusLine(gpsData)
 
-			displayEnabledItems(ans)
+			if ans[0] == "P" {
+				tickCounter += 1
+				fmt.Printf("%05d tick ", tickCounter)
+				// This is where we check for time to do a start recording
+				if myWin.utcStartArmed {
+					t := time.Now().UTC()
+
+					diff := t.Sub(myWin.leaderStartTime)
+					if diff >= 0.0 && !myWin.pastLeader {
+						fmt.Print("Starting leader")
+						myWin.pastLeader = true
+						getResponse(myWin.SharpCapConn, "start")
+					}
+
+					diff = t.Sub(myWin.firstFlashTime)
+					if diff >= 0.0 && !myWin.pastFlashOne {
+						fmt.Print("Flash one")
+						myWin.pastFlashOne = true
+						sendCommandToArduino("flash now")
+					}
+
+					diff = t.Sub(myWin.secondFlashTime)
+					if diff >= 0.0 && !myWin.pastFlashTwo {
+						fmt.Print("Flash two")
+						myWin.pastFlashTwo = true
+						sendCommandToArduino("flash now")
+					}
+
+					diff = t.Sub(myWin.endOfRecording)
+					if diff >= 0.0 && !myWin.pastEnd {
+						fmt.Print("Recording ended")
+						myWin.pastEnd = true
+						getResponse(myWin.SharpCapConn, "stop")
+						sharpCapPath := getResponse(myWin.SharpCapConn, "lastfilepath")
+						dirPath, _ := filepath.Split(sharpCapPath)
+						showMsg("Folder path", dirPath, 200, 200)
+						myWin.pathEntry.SetText(dirPath)
+					}
+				}
+				fmt.Println("")
+			}
+			displayEnabledItems(ans, checksumString)
 
 			// Check for selected com port no longer available - an error will occur
 			// if the modem status bits cannot be read.  We do this to be as robust as possible
@@ -91,14 +134,14 @@ func runApp(myWin *Config) {
 	}
 }
 
-func sendSentenceToBeParsed(sentence string, ans []string, err error) ([]string, error) {
+func sendSentenceToBeParsed(sentence string, ans []string, err error) ([]string, string, error) {
 	n := len(sentence)
 	checksum := sentence[n-3:]
 	ans, err = parseSentence(sentence[0:n-3], checksum, &gpsData)
 	if err != nil {
 		addToTextOutDisplay(fmt.Sprintf("%v", err))
 	}
-	return ans, err
+	return ans, checksum, err
 }
 
 func updateStatusLine(gpsInfo GPSdata) {
@@ -254,7 +297,7 @@ func getNextSentence(sc chan string) string {
 	} // infinite loop
 }
 
-func displayEnabledItems(ans []string) {
+func displayEnabledItems(ans []string, chkSumStr string) {
 	if ans[0] == "" {
 		return
 	}
@@ -262,30 +305,30 @@ func displayEnabledItems(ans []string) {
 	switch ans[0] {
 	case "$GPGGA":
 		if myWin.gpggaCheckBox.Checked {
-			addToTextOutDisplay(ans[1])
+			addToTextOutDisplay(ans[1] + chkSumStr)
 		}
 	case "$GPRMC":
 		if myWin.gprmcCheckBox.Checked {
-			addToTextOutDisplay(ans[1])
+			addToTextOutDisplay(ans[1] + chkSumStr)
 		}
 	case "$GPDTM":
 		if myWin.gpdtmCheckBox.Checked {
-			addToTextOutDisplay(ans[1])
+			addToTextOutDisplay(ans[1] + chkSumStr)
 		}
 	case "$PUBX":
 		if myWin.pubxCheckBox.Checked {
-			addToTextOutDisplay(ans[1])
+			addToTextOutDisplay(ans[1] + chkSumStr)
 		}
 	case "P":
 		if myWin.pCheckBox.Checked {
-			addToTextOutDisplay(ans[1])
+			addToTextOutDisplay(ans[1] + chkSumStr)
 		}
 	case "MODE":
 		if myWin.modeCheckBox.Checked {
-			addToTextOutDisplay(ans[1])
+			addToTextOutDisplay(ans[1] + chkSumStr)
 		}
 	default:
-		addToTextOutDisplay(ans[1])
+		addToTextOutDisplay(ans[1] + chkSumStr)
 	}
 }
 

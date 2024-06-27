@@ -6,11 +6,14 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 	"go.bug.st/serial"
 	"gonum.org/v1/plot/font"
-	"log"
+	"math"
+	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,7 +27,7 @@ import (
 
 const (
 	MaxSerialDataLines = 100_000
-	Version            = "1.1.1"
+	Version            = "1.1.2"
 )
 
 type TickStamp struct {
@@ -69,6 +72,8 @@ type GPSdata struct {
 
 type Config struct {
 	App                  fyne.App
+	SharpCapConn         net.Conn
+	SharpCapAvailable    bool
 	flashIntensitySlider *widget.Slider
 	MainWindow           fyne.Window
 	HelpViewer           *widget.RichText
@@ -97,16 +102,41 @@ type Config struct {
 	pCheckBox            *widget.Check
 	modeCheckBox         *widget.Check
 	cmdEntry             *widget.Entry
+	pathEntry            *widget.Entry
+	utcEventTime         *widget.Entry
+	eventDateTime        time.Time
+	leaderStartTime      time.Time
+	firstFlashTime       time.Time
+	secondFlashTime      time.Time
+	endOfRecording       time.Time
+	recordingLength      *widget.Entry
+	recordingDuration    float64
 	logFile              *os.File
 	flashEdgeLogfilePath *os.File
 	keepLogFile          bool
+	gotFirst1PPS         bool
+	utcStartArmed        bool
+	pastLeader           bool
+	pastFlashOne         bool
+	pastFlashTwo         bool
+	pastEnd              bool
+	armUTCbutton         *widget.Button
 }
 
 //go:embed help.txt
 var helpText string
 
+//go:embed recordingLengthError.txt
+var recordingLengthError string
+
+//go:embed utcTimeError.txt
+var utcTimeError string
+
 //go:embed cmd.txt
 var cmdText string
+
+//go:embed sharpCapError.txt
+var sharpCapErr string
 
 var onePPSdata OnePPSdata
 
@@ -121,6 +151,85 @@ var flashEdgeLogfilePath string
 
 // The following default baudrate can be changed by a command line argument
 var baudrate = 250000
+
+const MSGLEN = 1000
+
+const (
+	ServerHost   = "127.0.0.1"
+	IotaGFTPort  = "33001"
+	SharpCapPort = "33000"
+	ServerType   = "tcp"
+)
+
+func makeMsg(msg string) []byte {
+	// Pad msg with spaces to make a fixed length message of size MSGLEN
+	paddedMsg := make([]byte, MSGLEN)
+	for i := 0; i < len(msg); i++ {
+		paddedMsg[i] = msg[i]
+	}
+	for i := len(msg); i < MSGLEN; i++ {
+		paddedMsg[i] = ' '
+	}
+	return paddedMsg
+}
+
+func msgTrim(msg string) string {
+	return strings.TrimSpace(msg)
+}
+
+func getResponse(conn net.Conn, cmd string) string {
+	_, err := conn.Write(makeMsg(cmd))
+	if err != nil {
+		fmt.Println("Error writing:", err.Error())
+	}
+	buffer := make([]byte, MSGLEN)
+	_, err = conn.Read(buffer) // Get response - blocks until MSGLEN bytes have been received
+	if err != nil {
+		fmt.Println("Error reading:", err.Error())
+	}
+	return msgTrim(string(buffer[:]))
+}
+
+func server() {
+	// establish connection
+	server, err := net.Listen(ServerType, ServerHost+":"+IotaGFTPort)
+	if err != nil {
+		fmt.Println("Error listening:", err.Error())
+		os.Exit(1)
+	}
+	defer server.Close()
+	fmt.Println("Listening on " + ServerHost + ":" + IotaGFTPort)
+	fmt.Println("Waiting for client...")
+	for {
+		connection, err := server.Accept()
+		if err != nil {
+			fmt.Println("Error accepting: ", err.Error())
+			os.Exit(1)
+		}
+		//fmt.Println("client connected")
+		go processClient(connection)
+	}
+}
+
+func processClient(connection net.Conn) {
+	buffer := make([]byte, 1024)
+	bytesRead := 0
+	chunks := make([]byte, 0)
+	for {
+		mLen, err := connection.Read(buffer)
+		if err != nil {
+			fmt.Println("Error reading:", err.Error())
+			os.Exit(1)
+		}
+		bytesRead += mLen
+		chunks = append(chunks, buffer[:mLen]...)
+		if bytesRead == MSGLEN {
+			break
+		}
+	}
+	fmt.Println("Received: ", strings.TrimSpace(string(buffer[:bytesRead])))
+	connection.Close()
+}
 
 func main() {
 
@@ -154,41 +263,18 @@ func main() {
 		os.Exit(911)
 	}
 
-	// Form the full path to the logfile
-	logfilePath = fmt.Sprintf("%s\\LOG_GFT_%s.txt", workDir, timestamp)
-	flashEdgeLogfilePath = fmt.Sprintf("%s\\FLASH_EDGE_TIMES_%s.txt", workDir, timestamp)
-
-	// create and open the logFile
-	logFile, err1 := os.Create(logfilePath)
-	if err1 != nil {
-		log.Fatal(err1)
-	}
-	myWin.logFile = logFile
-
-	// create and open the flash edge logfile
-	flashLogFile, err1 := os.Create(flashEdgeLogfilePath)
-	if err1 != nil {
-		log.Fatal(err1)
-	}
-	myWin.flashEdgeLogfilePath = flashLogFile
-
-	// close the log files for sure when app exits
-	defer func(flashLogFile *os.File) {
-		err := flashLogFile.Close()
-		if err != nil {
-		}
-	}(flashLogFile)
-
-	defer func(logFile *os.File) {
-		err := logFile.Close()
-		if err != nil {
-		}
-	}(logFile)
-
 	initializeStartingWindow(&myWin)
 
 	// Build the GUI
 	myWin.makeUI()
+
+	myWin.utcStartArmed = false
+	myWin.pastLeader = false
+	myWin.pastFlashOne = false
+	myWin.pastFlashTwo = false
+	myWin.pastEnd = false
+
+	createLogAndFlashEdgeFiles(workDir, timestamp)
 
 	//defer deleteLogfile()
 
@@ -211,6 +297,10 @@ func main() {
 
 	go runApp(&myWin)
 
+	go server()
+
+	checkSharpCapAvailability()
+
 	// show and run the GUI
 	myWin.MainWindow.ShowAndRun()
 
@@ -219,19 +309,119 @@ func main() {
 	if myWin.serialPort != nil {
 		err := myWin.serialPort.Close()
 		if err != nil {
-			log.Fatal("While closing serial port got:", err)
+			fmt.Println("While closing serial port got:", err)
 		}
 	}
 	myWin.spMutex.Unlock()
+
+	if myWin.SharpCapAvailable {
+		myWin.SharpCapConn.Close()
+	}
+
 	calcFlashEdgeTimes() // These get written to the flashEdgeLogfile
+
+	_ = myWin.logFile.Close()
+	_ = myWin.flashEdgeLogfilePath.Close()
+}
+
+func checkSharpCapAvailability() {
+	var err error
+	myWin.SharpCapConn, err = net.Dial(ServerType, ServerHost+":"+SharpCapPort)
+	if err != nil {
+		showMsg("SharpCap unavailable", sharpCapErr, 600, 550)
+		myWin.SharpCapAvailable = false
+		fmt.Println("SharpCap not running") // TODO Popup a message window
+	} else {
+		myWin.SharpCapAvailable = true
+	}
+}
+
+// exists returns whether the given file or directory exists
+func exists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+func createLogAndFlashEdgeFiles(workDir string, timestamp string) bool {
+	if myWin.pathEntry.Text != "" {
+		// Create the target folder if it doesn't already exist
+		folderPath := myWin.pathEntry.Text
+		lastChar := string(folderPath[len(folderPath)-1])
+
+		if lastChar == "\\" || lastChar == "/" {
+			folderPath = folderPath[:len(folderPath)-1]
+		}
+
+		root, _ := filepath.Split(folderPath)
+		//fmt.Println(root, newFolder)
+
+		rootExists, err := exists(root)
+		if err != nil {
+			fmt.Println("in createLogAndFlashEdgeFiles:", err)
+			return false
+		}
+
+		if !rootExists {
+			dialog.ShowInformation(
+				"File path error:",
+				"\nThe parent folder does not exist.\n\nIt must be created manually.\n",
+				myWin.MainWindow,
+			)
+			return false
+		} else {
+			folderExists, err := exists(folderPath)
+			if err != nil {
+				fmt.Println("in createLogAndFlashEdgeFiles:", err)
+				return false
+			}
+
+			if !folderExists {
+				err := os.Mkdir(folderPath, 0644)
+				if err != nil {
+					fmt.Println("in createLogAndFlashEdgeFiles:", err)
+					return false
+				}
+			}
+		}
+
+		deleteLogfile()
+		deleteEdgeTimesFile()
+
+		logfilePath = fmt.Sprintf("%s/LOG_GFT.txt", folderPath)
+		flashEdgeLogfilePath = fmt.Sprintf("%s/FLASH_EDGE_TIMES.txt", folderPath)
+
+		fmt.Println("New log file:", logfilePath)
+		fmt.Println("New edge times file:", flashEdgeLogfilePath)
+	} else {
+		// Form the full path to the standard logfile
+		logfilePath = fmt.Sprintf("%s/LOG_GFT_%s.txt", workDir, timestamp)
+		flashEdgeLogfilePath = fmt.Sprintf("%s/FLASH_EDGE_TIMES_%s.txt", workDir, timestamp)
+	}
+
+	// create and open the logFile
+	logFile, err1 := os.Create(logfilePath)
+	if err1 != nil {
+		fmt.Println("in createLogAndFlashEdgeFiles:", err1)
+		return false
+	}
+	myWin.logFile = logFile
+
+	// create and open the flash edge logfile
+	flashLogFile, err1 := os.Create(flashEdgeLogfilePath)
+	if err1 != nil {
+		fmt.Println("in createLogAndFlashEdgeFiles:", err1)
+		return false
+	}
+	myWin.flashEdgeLogfilePath = flashLogFile
+	return true
 }
 
 func addToTextOutDisplay(msg string) {
-	// Write every msg added to the text out panel to the log file
-	//_, fileErr := myWin.logFile.WriteString(msg + "\n")
-	//if fileErr != nil {
-	//	fmt.Println(fmt.Errorf("addToTextOutDisplay(): %w", fileErr))
-	//}
 
 	if len(myWin.textOut) >= MaxSerialDataLines {
 		myWin.textOut = []string{""}
@@ -251,24 +441,33 @@ func initializeStartingWindow(myWin *Config) {
 	myWin.MainWindow.CenterOnScreen()
 }
 
-//func deleteLogfile() {
-//	//fmt.Println("State of logCheckBox: ", checked)
-//	if !myWin.keepLogFile {
-//		//fmt.Println("Deleting log file")
-//		//myWin.logCheckBox.Disable()
-//		filePath := myWin.logFile.Name()
-//		err := myWin.logFile.Close()
-//		if err != nil {
-//			fmt.Println(fmt.Errorf("deleteLogfile(): %w", err))
-//		}
-//		myWin.logFile = nil
-//		err = os.Remove(filePath)
-//		if err != nil {
-//			fmt.Println(fmt.Errorf("deleteLogfile(): %w", err))
-//		}
-//		//fmt.Println("Log file deleted")
-//	}
-//}
+func deleteLogfile() {
+	filePath := myWin.logFile.Name()
+	fmt.Println("Deleting log file:", filePath)
+	err := myWin.logFile.Close()
+	if err != nil {
+		fmt.Println(fmt.Errorf("deleteLogfile(): %w", err))
+	}
+	myWin.logFile = nil
+	err = os.Remove(filePath)
+	if err != nil {
+		fmt.Println(fmt.Errorf("deleteLogfile(): %w", err))
+	}
+}
+
+func deleteEdgeTimesFile() {
+	filePath := myWin.flashEdgeLogfilePath.Name()
+	fmt.Println("Deleting edge times file:", filePath)
+	err := myWin.flashEdgeLogfilePath.Close()
+	if err != nil {
+		fmt.Println(fmt.Errorf("deleteEdgeTimesFile(): %w", err))
+	}
+	myWin.flashEdgeLogfilePath = nil
+	err = os.Remove(filePath)
+	if err != nil {
+		fmt.Println(fmt.Errorf("deleteEdgeTimesFile(): %w", err))
+	}
+}
 
 func calcFlashEdgeTimes() {
 	//nEdges := len(flashEdges)
@@ -288,9 +487,9 @@ func calcFlashEdgeTimes() {
 
 				edgeStr := ""
 				if flashEdges[i].on {
-					edgeStr = fmt.Sprintf("%d on  %s\n", i+1, newTimestamp) // Count flash edges starting from 1
+					edgeStr = fmt.Sprintf("%d on  %s\n", i+1, newTimestamp+"Z") // Count flash edges starting from 1
 				} else {
-					edgeStr = fmt.Sprintf("%d off %s\n", i+1, newTimestamp)
+					edgeStr = fmt.Sprintf("%d off %s\n", i+1, newTimestamp+"Z")
 				}
 				_, fileErr := myWin.flashEdgeLogfilePath.WriteString(edgeStr)
 				if fileErr != nil {
@@ -323,16 +522,138 @@ func interpolateTimestamp(flashTime, t1, t2 int64, s1, s2 string) string {
 
 func show1ppsHistory() {
 
-	buildPlot() // Writes judy.png in current working directory
+	buildPlot() // Writes ppsHistory.png in current working directory
 
-	pngWin := myWin.App.NewWindow("Test png display")
+	pngWin := myWin.App.NewWindow("1pps history")
 	pngWin.Resize(fyne.Size{Height: 450, Width: 1400})
 
-	testImage := canvas.NewImageFromFile("judy.png")
+	testImage := canvas.NewImageFromFile("ppsHistory.png")
 	pngWin.SetContent(testImage)
 	pngWin.CenterOnScreen()
 	pngWin.Show()
+}
 
+func validRecordingTime() bool {
+	var textGiven = myWin.recordingLength.Text
+	value, err := strconv.ParseFloat(textGiven, 64)
+	if err != nil {
+		return false
+	}
+	if value <= 0.0 {
+		return false
+	}
+	myWin.recordingDuration = value
+	//fmt.Println("recording length (sec):", textGiven)
+	return true
+}
+
+func validUTCtime() bool {
+	var textGiven = myWin.utcEventTime.Text
+	utcTime, err := time.Parse(time.DateTime, textGiven)
+	if err != nil {
+		return false
+	}
+	fmt.Println("utc date/time entered:", utcTime)
+	myWin.eventDateTime = utcTime
+	return true
+}
+
+func calculateStartTime(delta time.Duration) string {
+	exposureStr := getResponse(myWin.SharpCapConn, "exposure")
+	fmt.Println("Rcvd:", exposureStr)
+	if exposureStr == "No camera selected" {
+		showMsg("SharpCap error", "\nNo camera selected!\n", 200, 200)
+		return "No camera selected"
+	}
+	exposureMs, err := strconv.ParseFloat(exposureStr, 64)
+	if err != nil {
+		showMsg("Format error", err.Error(), 200, 200)
+		return "Exposure string invalid"
+	}
+	//fmt.Println(exposureMs)
+	readingsPerSecond := 1000 / exposureMs
+	fmt.Println(readingsPerSecond, "readings per second")
+	neededFlashTime := 10 / readingsPerSecond
+	if neededFlashTime < 1.0 {
+		neededFlashTime = 1
+	} else {
+		neededFlashTime = math.Ceil(neededFlashTime)
+	}
+	// Set the flash duration (seconds)
+	cmd := fmt.Sprintf("flash duration %d", int(neededFlashTime))
+	sendCommandToArduino(cmd)
+
+	flashTime := neededFlashTime
+	leaderTime := neededFlashTime
+	halfDuration := myWin.recordingDuration / 2.0
+	startOffset := time.Second * time.Duration(halfDuration+flashTime+leaderTime)
+	var startTime time.Time
+	var future time.Duration
+	if delta > 0 {
+		startTime = time.Now().UTC().Add(delta)
+		fmt.Println("start time:", startTime)
+		future = -delta
+	} else {
+		startTime = myWin.eventDateTime.Add(-startOffset)
+		fmt.Println("start time:", startTime)
+		future = time.Now().Sub(startTime)
+	}
+	fmt.Println("time now:", time.Now().UTC())
+	fmt.Println("time until start of acquisition:", -future)
+	if future < 0 {
+		myWin.leaderStartTime = startTime
+		myWin.firstFlashTime = myWin.leaderStartTime.Add(time.Second * time.Duration(flashTime))
+		myWin.secondFlashTime = myWin.firstFlashTime.Add(time.Second * time.Duration(flashTime+myWin.recordingDuration))
+		myWin.endOfRecording = myWin.secondFlashTime.Add(time.Second * time.Duration(2*flashTime))
+		return "ok"
+	} else {
+		return "start time is in the past"
+	}
+}
+
+func armUTCstart() {
+	//fmt.Println("Arm UTC start clicked")
+	if !myWin.utcStartArmed {
+		if !myWin.SharpCapAvailable {
+			checkSharpCapAvailability()
+			if !myWin.SharpCapAvailable {
+				return
+			}
+		}
+
+		if !validRecordingTime() {
+			showMsg("Invalid recording time", recordingLengthError, 250, 400)
+			return
+		}
+
+		utcText := myWin.utcEventTime.Text
+		fmt.Println("UTC event time:", utcText)
+
+		var result string
+		if utcText == "" {
+			fmt.Println("Start 15 seconds from now")
+			result = calculateStartTime(time.Second * 15)
+		} else {
+			if !validUTCtime() {
+				showMsg("Invalid UTC date/time", utcTimeError, 250, 400)
+				return
+			}
+			result = calculateStartTime(time.Second * 0)
+		}
+
+		if result != "ok" {
+			showMsg("Start time error", "\n"+result+"\n", 250, 400)
+			return
+		}
+
+		myWin.armUTCbutton.SetText("UTC start armed and active")
+		myWin.armUTCbutton.Importance = widget.SuccessImportance
+		myWin.utcStartArmed = true
+	} else {
+		myWin.utcStartArmed = false
+		myWin.armUTCbutton.Importance = widget.MediumImportance
+		myWin.armUTCbutton.SetText("Arm UTC start")
+	}
 }
 
 func buildPlot() {
@@ -359,7 +680,7 @@ func buildPlot() {
 		panic(err)
 	}
 
-	err = plt.Save(20*vg.Inch, 6*vg.Inch, "judy.png")
+	err = plt.Save(20*vg.Inch, 6*vg.Inch, "ppsHistory.png")
 	if err != nil {
 		panic(err)
 	}

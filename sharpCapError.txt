@@ -1,0 +1,24 @@
+
+SharpCap is not running on this machine.
+
+Expected work order:
+
+1) Open the SharpCap application.
+
+2) Select a camera.
+
+3) Select an exposure time and gain that is appropriate for the observation.
+
+4) Activate the histogram tool in SharpCap.
+
+5) With the LED off, set the black level so that there is no background clipping visible in the histogram.
+
+6) Turn the LED on (the check box at lower right) and use the LED intensity slider to set an intensity that causes
+      the histogram to register a small increase in overall pixel intensities.
+
+7) Set UTC event time (time at center of event) and recording duration and click the Arm UTC start button.
+
+8) Any other SharpCap tools and scripts can be run at any convenient time.
+
+NOTE: If you make any changes to the camera exposure time, BE SURE TO click the Arm UTC start button
+           again so that the change can be incorporated in the start time and flash duration.

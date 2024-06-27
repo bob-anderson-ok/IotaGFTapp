@@ -1,0 +1,5 @@
+The format for a UTC time is:
+
+  yyyy-mm-dd hh:mm:ss    (example: 2024-06-25 13:30:00)
+
+ Note that mm, dd, hh, mm, and ss must be all 2 digit values.

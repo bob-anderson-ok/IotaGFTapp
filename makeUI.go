@@ -46,12 +46,9 @@ func (app *Config) makeUI() {
 	helpButton := widget.NewButton("Help", func() { showHelp() })
 	leftItem.Add(helpButton)
 
-	leftItem.Add(canvas.NewText("=========================", color.NRGBA{R: 180, A: 255}))
-
 	app.curBaudRate = baudrate
 
 	leftItem.Add(canvas.NewText("Serial ports available", nil))
-	//var comPorts []string
 	app.selectComPort = widget.NewSelect([]string{}, func(value string) { handleComPortSelection(value) })
 	leftItem.Add(app.selectComPort)
 	app.comPortInUse = widget.NewLabel("Serial port open: none")
@@ -70,11 +67,22 @@ func (app *Config) makeUI() {
 	leftItem.Add(blackThemeCheckbox)
 	blackThemeCheckbox.SetChecked(true)
 
-	//app.logCheckBox = widget.NewCheck("Log file wanted", func(checked bool) { setKeepLogFileFlag(checked) })
-	//app.logCheckBox.SetChecked(true)
-	//leftItem.Add(app.logCheckBox)
+	leftItem.Add(canvas.NewText("=========================", color.NRGBA{R: 180, A: 255}))
 
-	leftItem.Add(layout.NewSpacer())
+	leftItem.Add(canvas.NewText("UTC event date/time", nil))
+	app.utcEventTime = widget.NewEntry()
+	app.utcEventTime.OnSubmitted = func(stuff string) { processUTCeventTimeEntry(stuff) }
+	leftItem.Add(app.utcEventTime)
+
+	leftItem.Add(canvas.NewText("Recording length (sec)", nil))
+	app.recordingLength = widget.NewEntry()
+	app.recordingLength.OnSubmitted = func(stuff string) { processRecordingLengthEntry(stuff) }
+	leftItem.Add(app.recordingLength)
+
+	app.armUTCbutton = widget.NewButton("Arm UTC start", func() { armUTCstart() })
+	leftItem.Add(app.armUTCbutton)
+
+	leftItem.Add(canvas.NewText("=========================", color.NRGBA{R: 180, A: 255}))
 
 	leftItem.Add(widget.NewButton("Clear output", func() { clearSerialOutputDisplay() }))
 	app.autoScroll = widget.NewCheck("Auto-scroll enabled", func(bool) {})
@@ -104,7 +112,7 @@ func (app *Config) makeUI() {
 	column1.Add(app.pubxCheckBox)
 
 	app.pCheckBox = widget.NewCheck("P", func(bool) {})
-	app.pCheckBox.SetChecked(true)
+	app.pCheckBox.SetChecked(false)
 	column1.Add(app.pCheckBox)
 
 	app.modeCheckBox = widget.NewCheck("MODE", func(bool) {})
@@ -135,12 +143,27 @@ func (app *Config) makeUI() {
 	app.cmdEntry = widget.NewEntry()
 	app.cmdEntry.OnSubmitted = func(str string) { sendCommandToArduino("") }
 
+	app.pathEntry = widget.NewEntry()
+	app.pathEntry.OnSubmitted = func(str string) { changeLogAndEdgeFiles(str) }
+
+	//bob := container.NewHBox()
+	bob := container.NewBorder(
+		nil,
+		nil,
+		canvas.NewText("Path to FITS folder:", nil),
+		nil,
+		app.pathEntry,
+	)
+	//bob := canvas.NewText("Path to FITS folder:", nil)
+	//bob.Add(canvas.NewText("Path to FITS folder:", nil))
+	//bob.Add(app.pathEntry)
+
 	bottomEntry := container.NewBorder( // top, bottom, left, right, center
 		nil,
-		nil,
+		//nil,
+		bob,
 		canvas.NewText("Enter IOTA GFT command:", nil),
 		widget.NewButton("Help: commands", func() { showCommandHelp() }),
-		//widget.NewButton("Send cmd", func() { sendCommandToArduino() }),
 		app.cmdEntry,
 	)
 	app.cmdEntry.SetPlaceHolder("commands to be sent to the GFT go here - Press Enter to send")
@@ -169,6 +192,23 @@ func (app *Config) makeUI() {
 		app.textOutDisplay)
 
 	app.MainWindow.SetContent(content)
+}
+
+func processUTCeventTimeEntry(stuff string) {
+	fmt.Println(stuff)
+}
+
+func processRecordingLengthEntry(stuff string) {
+	fmt.Println(stuff)
+}
+
+func changeLogAndEdgeFiles(path string) {
+	fmt.Println("New path given:", path)
+	if path != "" {
+		createLogAndFlashEdgeFiles("", "")
+		//deleteLogfile()
+		//deleteEdgeTimesFile()
+	}
 }
 
 func showIntensitySlider(clicked bool) {
@@ -336,4 +376,14 @@ func showHelp() {
 	helpWin.SetContent(scrollableText)
 	helpWin.Show()
 	helpWin.CenterOnScreen()
+}
+
+func showMsg(title string, msg string, height, width float32) {
+	msgWin := myWin.App.NewWindow(title)
+	msgWin.Resize(fyne.Size{Height: height, Width: width})
+	scrollableText := container.NewVScroll(widget.NewRichTextWithText(msg))
+	msgWin.SetContent(scrollableText)
+	msgWin.Show()
+	msgWin.CenterOnScreen()
+	msgWin.RequestFocus()
 }

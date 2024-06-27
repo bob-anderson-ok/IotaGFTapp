@@ -1,0 +1,10 @@
+The recording length must be a valid non-zero positive time in seconds.
+
+We use that value to calculate a start time for the recording
+such that the "event" will occur at the center of the recording.
+
+The program will automatically calculate a starting time that will allow for at least
+10 readings before the start of the flash, plus the time for the flash itself,
+plus half of the specified recording duration.
+
+This results in the "event UTC time" being positioned at the center of the recording.
