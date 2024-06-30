@@ -144,24 +144,20 @@ func (app *Config) makeUI() {
 	app.cmdEntry.OnSubmitted = func(str string) { sendCommandToArduino("") }
 
 	app.pathEntry = widget.NewEntry()
-	app.pathEntry.OnSubmitted = func(str string) { changeLogAndEdgeFiles(str) }
+	//app.pathEntry.OnSubmitted = func(str string) { changeLogAndEdgeFiles(str) }
 
-	//bob := container.NewHBox()
-	bob := container.NewBorder(
-		nil,
-		nil,
-		canvas.NewText("Path to FITS folder:", nil),
-		nil,
-		app.pathEntry,
-	)
-	//bob := canvas.NewText("Path to FITS folder:", nil)
-	//bob.Add(canvas.NewText("Path to FITS folder:", nil))
-	//bob.Add(app.pathEntry)
+	//bob := container.NewBorder(
+	//	nil,
+	//	nil,
+	//	canvas.NewText("Path to FITS folder:", nil),
+	//	nil,
+	//	app.pathEntry,
+	//)
 
 	bottomEntry := container.NewBorder( // top, bottom, left, right, center
 		nil,
-		//nil,
-		bob,
+		nil,
+		//bob,
 		canvas.NewText("Enter IOTA GFT command:", nil),
 		widget.NewButton("Help: commands", func() { showCommandHelp() }),
 		app.cmdEntry,
@@ -202,14 +198,14 @@ func processRecordingLengthEntry(stuff string) {
 	fmt.Println(stuff)
 }
 
-func changeLogAndEdgeFiles(path string) {
-	fmt.Println("New path given:", path)
-	if path != "" {
-		createLogAndFlashEdgeFiles("", "")
-		//deleteLogfile()
-		//deleteEdgeTimesFile()
-	}
-}
+//func changeLogAndEdgeFiles(path string) {
+//	fmt.Println("New path given:", path)
+//	if path != "" {
+//		createLogAndFlashEdgeFiles("", "")
+//		//deleteLogfile()
+//		//deleteEdgeTimesFile()
+//	}
+//}
 
 func showIntensitySlider(clicked bool) {
 	myWin.flashIntensitySlider.Hidden = !clicked

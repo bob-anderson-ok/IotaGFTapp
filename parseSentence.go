@@ -81,6 +81,12 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 				gpsInfo.year += 2000
 				gpsInfo.month, _ = strconv.Atoi(gpsInfo.date[2:4])
 				gpsInfo.day, _ = strconv.Atoi(gpsInfo.date[0:2])
+				unixTime := time.Date(gpsInfo.year, time.Month(gpsInfo.month), gpsInfo.day,
+					gpsInfo.hour, gpsInfo.minute, gpsInfo.second, 0, time.UTC).Unix()
+				if gpsInfo.unixTime == 0 {
+					gpsInfo.nextUnixTime = unixTime + 1
+				}
+				gpsInfo.unixTime = unixTime + 1
 			}
 			return []string{"$GPRMC", sentence}, nil
 		case "$GPDTM":
@@ -114,6 +120,7 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 
 	if pSentence { // process P sentence
 		tickPulse := strings.Contains(sentence, "P}")
+		pType := "P"
 		parts := strings.Split(sentence, " ")
 		if len(parts) < 2 {
 			return ans, errors.New("parseSentence(): split of P sentence on space did not give 2 parts")
@@ -173,6 +180,7 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 		// time from a P sentence so that onePPSdata.runningTickTime has been updated
 		if strings.Contains(sentence, "+}") { // process flashOn sentence
 			//fmt.Printf("Flash on  @ %s  %s\n", sentence, gpsInfo.utcTimestamp)
+			pType = "+"
 			flashEdges = append(flashEdges, FlashEdge{
 				edgeTime: onePPSdata.runningTickTime,
 				on:       true,
@@ -183,12 +191,16 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 		// time from a P sentence so that onePPSdata.runningTickTime has been updated
 		if strings.Contains(sentence, "!}") { // process flashOff sentence
 			//fmt.Printf("Flash off @ %s  %s\n", sentence, gpsInfo.utcTimestamp)
+			pType = "+"
 			flashEdges = append(flashEdges, FlashEdge{
 				edgeTime: onePPSdata.runningTickTime,
 				on:       false,
 			})
 		}
-		ans = []string{"P", fmt.Sprintf("%s (deltaP is %d)", sentence, deltaP)}
+		if strings.Contains(sentence, "E}") {
+			pType = "E"
+		}
+		ans = []string{pType, fmt.Sprintf("%s (deltaP is %d)", sentence, deltaP)}
 		return ans, nil
 	}
 

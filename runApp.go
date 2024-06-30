@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"fyne.io/fyne/v2/widget"
 	"image/color"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -17,13 +19,16 @@ func runApp(myWin *Config) {
 
 	waitingForNestFinish := false
 
+	//var tickCounter int64
+	var tickMsg string
+
 	var ans []string
 	var checksumString string
 	var err error
 	var parts []string
 	var partsSaved []string
 	var nester, nestee string
-	var tickCounter int
+	const showTickMsg = true
 	for {
 		if myWin.serialPort != nil {
 			// A 'sentence' is everything up to, but not including, a crlf sequence.
@@ -70,50 +75,83 @@ func runApp(myWin *Config) {
 			// This call checks the checksum
 			ans, checksumString, err = sendSentenceToBeParsed(sentence, ans, err)
 
-			updateStatusLine(gpsData)
-
+			//updateStatusLine(gpsData)
 			if ans[0] == "P" {
-				tickCounter += 1
-				fmt.Printf("%05d tick ", tickCounter)
+				//tickCounter += 1
+				//fmt.Println("tickCounter:", tickCounter)
+				tickMsg = fmt.Sprintf("%05d tick ", gpsData.unixTime)
+				lostPulseCount := gpsData.unixTime - gpsData.nextUnixTime
+				if lostPulseCount != 0 {
+					showMsg("PPS error !",
+						fmt.Sprintf("\n%d 1pps pulses were lost !!!\n", lostPulseCount), 200, 800)
+					fmt.Printf("\n%d 1pps pulses were lost\n", lostPulseCount)
+					gpsData.nextUnixTime = gpsData.unixTime // catch up so that we can continue testing
+				}
+				gpsData.nextUnixTime += 1
 				// This is where we check for time to do a start recording
 				if myWin.utcStartArmed {
-					t := time.Now().UTC()
+					tNow := gpsData.unixTime
 
-					diff := t.Sub(myWin.leaderStartTime)
-					if diff >= 0.0 && !myWin.pastLeader {
-						fmt.Print("Starting leader")
+					// The test below (>=) could be just == , but we want to be as robust
+					// as possible in case a 1pps pulse goes missing that happens to coincide
+					// with a scheduled event
+					if tNow >= myWin.leaderStartTime && !myWin.pastLeader {
+						tickMsg += fmt.Sprint("Starting leader ")
 						myWin.pastLeader = true
 						getResponse(myWin.SharpCapConn, "start")
 					}
 
-					diff = t.Sub(myWin.firstFlashTime)
-					if diff >= 0.0 && !myWin.pastFlashOne {
-						fmt.Print("Flash one")
+					if tNow >= myWin.firstFlashTime && !myWin.pastFlashOne {
+						tickMsg += fmt.Sprint("Flash one")
 						myWin.pastFlashOne = true
 						sendCommandToArduino("flash now")
 					}
 
-					diff = t.Sub(myWin.secondFlashTime)
-					if diff >= 0.0 && !myWin.pastFlashTwo {
-						fmt.Print("Flash two")
+					if tNow >= myWin.secondFlashTime && !myWin.pastFlashTwo {
+						tickMsg += fmt.Sprint("Flash two")
 						myWin.pastFlashTwo = true
 						sendCommandToArduino("flash now")
 					}
 
-					diff = t.Sub(myWin.endOfRecording)
-					if diff >= 0.0 && !myWin.pastEnd {
-						fmt.Print("Recording ended")
+					if tNow >= myWin.endOfRecording && !myWin.pastEnd {
+						tickMsg += fmt.Sprint("Recording ended\n")
 						myWin.pastEnd = true
 						getResponse(myWin.SharpCapConn, "stop")
 						sharpCapPath := getResponse(myWin.SharpCapConn, "lastfilepath")
 						dirPath, _ := filepath.Split(sharpCapPath)
-						showMsg("Folder path", dirPath, 200, 200)
-						myWin.pathEntry.SetText(dirPath)
+						showMsg("Path to SharpCap capture folder:", dirPath, 200, 800)
+						//myWin.pathEntry.SetText(dirPath)
+
+						calcFlashEdgeTimes() // These get written to the flashEdgeLogfile
+						myWin.flashEdgeLogfile.Close()
+						flashEdges = []FlashEdge{}
+
+						myWin.utcStartArmed = false
+						myWin.armUTCbutton.Importance = widget.MediumImportance
+						myWin.armUTCbutton.SetText("Arm UTC start")
+
+						err := os.Rename(myWin.flashEdgeLogfilePath, dirPath+"FLASH_EDGE_TIMES.txt")
+						if err != nil {
+							fmt.Println(err)
+						}
+
+						myWin.logFile.Close()
+						err = os.Rename(myWin.logFilePath, dirPath+"IotaGFT_LOG.txt")
+						if err != nil {
+							fmt.Println(err)
+						}
+
+						// Create a new set of Log and FlashEdge files in our working directory
+						createLogAndFlashEdgeFiles(getWorkDir())
+
 					}
 				}
-				fmt.Println("")
+				if showTickMsg {
+					fmt.Println(tickMsg)
+				}
 			}
 			displayEnabledItems(ans, checksumString)
+			updateStatusLine(gpsData)
 
 			// Check for selected com port no longer available - an error will occur
 			// if the modem status bits cannot be read.  We do this to be as robust as possible
