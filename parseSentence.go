@@ -181,10 +181,12 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 		if strings.Contains(sentence, "+}") { // process flashOn sentence
 			//fmt.Printf("Flash on  @ %s  %s\n", sentence, gpsInfo.utcTimestamp)
 			pType = "+"
-			flashEdges = append(flashEdges, FlashEdge{
-				edgeTime: onePPSdata.runningTickTime,
-				on:       true,
-			})
+			if myWin.pastLeader {
+				flashEdges = append(flashEdges, FlashEdge{
+					edgeTime: onePPSdata.runningTickTime,
+					on:       true,
+				})
+			}
 		}
 
 		// The position of this code is important - it must follow the extraction of micro tick
@@ -192,10 +194,12 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 		if strings.Contains(sentence, "!}") { // process flashOff sentence
 			//fmt.Printf("Flash off @ %s  %s\n", sentence, gpsInfo.utcTimestamp)
 			pType = "+"
-			flashEdges = append(flashEdges, FlashEdge{
-				edgeTime: onePPSdata.runningTickTime,
-				on:       false,
-			})
+			if myWin.pastLeader {
+				flashEdges = append(flashEdges, FlashEdge{
+					edgeTime: onePPSdata.runningTickTime,
+					on:       false,
+				})
+			}
 		}
 		if strings.Contains(sentence, "E}") {
 			pType = "E"

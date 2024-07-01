@@ -3,6 +3,8 @@ SharpCap is not running on this machine.
 
 Expected work order:
 
+0) Wait for IotaGFT Status to report TimeValid PPS (the GPS chip sometimes need extended time begin emitting GPS time)
+
 1) Open the SharpCap application.
 
 2) Select a camera.

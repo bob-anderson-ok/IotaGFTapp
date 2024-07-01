@@ -1,0 +1,18 @@
+
+NOTE:
+
+Wait for GPS time to be established.  ("Status: TimeValid PPS" will appear in green at upper left of GUI)
+
+The GPS chip can take a while to acquire enough satellite to begin emitting GPS time.
+
+
+
+SPECIAL TEST PROTOCOL AVAILABLE:
+
+If you leave the UTC event data/time entry field empty, and provide a recording duration, and then press:
+
+                    Arm UTC start
+
+a test recording will be preformed after a 10 second delay.
+
+This is provided as a simple way to confirm that your setup will record the observation properly.

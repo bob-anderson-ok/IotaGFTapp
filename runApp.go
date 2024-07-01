@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"fyne.io/fyne/v2/widget"
 	"image/color"
+	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -29,6 +31,8 @@ func runApp(myWin *Config) {
 	var partsSaved []string
 	var nester, nestee string
 	const showTickMsg = true
+	time.Sleep(2000 * time.Millisecond)
+	showMsg("Special test protocol", noUTCtest, 450, 800)
 	for {
 		if myWin.serialPort != nil {
 			// A 'sentence' is everything up to, but not including, a crlf sequence.
@@ -74,12 +78,12 @@ func runApp(myWin *Config) {
 
 			// This call checks the checksum
 			ans, checksumString, err = sendSentenceToBeParsed(sentence, ans, err)
-
+			needTickMsg := false
 			//updateStatusLine(gpsData)
 			if ans[0] == "P" {
 				//tickCounter += 1
 				//fmt.Println("tickCounter:", tickCounter)
-				tickMsg = fmt.Sprintf("%05d tick ", gpsData.unixTime)
+				tickMsg = fmt.Sprintf("unixTime %d ", gpsData.unixTime)
 				lostPulseCount := gpsData.unixTime - gpsData.nextUnixTime
 				if lostPulseCount != 0 {
 					showMsg("PPS error !",
@@ -97,25 +101,29 @@ func runApp(myWin *Config) {
 					// with a scheduled event
 					if tNow >= myWin.leaderStartTime && !myWin.pastLeader {
 						tickMsg += fmt.Sprint("Starting leader ")
+						needTickMsg = true
 						myWin.pastLeader = true
 						getResponse(myWin.SharpCapConn, "start")
 					}
 
 					if tNow >= myWin.firstFlashTime && !myWin.pastFlashOne {
-						tickMsg += fmt.Sprint("Flash one")
+						tickMsg += fmt.Sprint("Flash one requested")
+						needTickMsg = true
 						myWin.pastFlashOne = true
 						sendCommandToArduino("flash now")
 					}
 
 					if tNow >= myWin.secondFlashTime && !myWin.pastFlashTwo {
-						tickMsg += fmt.Sprint("Flash two")
+						tickMsg += fmt.Sprint("Flash two requested")
 						myWin.pastFlashTwo = true
+						needTickMsg = true
 						sendCommandToArduino("flash now")
 					}
 
 					if tNow >= myWin.endOfRecording && !myWin.pastEnd {
 						tickMsg += fmt.Sprint("Recording ended\n")
 						myWin.pastEnd = true
+						needTickMsg = true
 						getResponse(myWin.SharpCapConn, "stop")
 						sharpCapPath := getResponse(myWin.SharpCapConn, "lastfilepath")
 						dirPath, _ := filepath.Split(sharpCapPath)
@@ -126,7 +134,13 @@ func runApp(myWin *Config) {
 						myWin.flashEdgeLogfile.Close()
 						flashEdges = []FlashEdge{}
 
+						// Reset all of the scheduling flags
 						myWin.utcStartArmed = false
+						myWin.pastLeader = false
+						myWin.pastFlashOne = false
+						myWin.pastFlashTwo = false
+						myWin.pastEnd = false
+
 						myWin.armUTCbutton.Importance = widget.MediumImportance
 						myWin.armUTCbutton.SetText("Arm UTC start")
 
@@ -144,9 +158,16 @@ func runApp(myWin *Config) {
 						// Create a new set of Log and FlashEdge files in our working directory
 						createLogAndFlashEdgeFiles(getWorkDir())
 
+						if showTickMsg && needTickMsg {
+							fmt.Println(tickMsg)
+							needTickMsg = false
+						}
+
+						go startFitsReader(dirPath, err)
+
 					}
 				}
-				if showTickMsg {
+				if showTickMsg && needTickMsg {
 					fmt.Println(tickMsg)
 				}
 			}
@@ -169,6 +190,16 @@ func runApp(myWin *Config) {
 			time.Sleep(100 * time.Millisecond)
 			scanForComPorts()
 		}
+	}
+}
+
+func startFitsReader(dirPath string, err error) {
+	cmd := exec.Command("./FitsReader.exe", dirPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	if err != nil {
+		log.Fatalf("cmd.Run() failed with %s\n", err)
 	}
 }
 

@@ -25,7 +25,6 @@ func changeTheme(checked bool) {
 		myWin.App.Settings().SetTheme(&forcedVariant{Theme: theme.DefaultTheme(), variant: theme.VariantDark})
 	} else {
 		myWin.App.Settings().SetTheme(&forcedVariant{Theme: theme.DefaultTheme(), variant: theme.VariantLight})
-
 	}
 }
 
@@ -33,7 +32,7 @@ func (app *Config) makeUI() {
 
 	flashEdges = []FlashEdge{}
 
-	changeTheme(true) // Start with black theme
+	//changeTheme(true) // Start with black theme
 
 	app.statusLine = makeStatusLine(app)
 
@@ -133,6 +132,7 @@ func (app *Config) makeUI() {
 
 	ledOnCheckBox := widget.NewCheck("LED on", func(clicked bool) { showIntensitySlider(clicked) })
 	ledOnCheckBox.SetChecked(false)
+	myWin.ledOnCheckbox = ledOnCheckBox
 	column2 := container.NewVBox()
 	column2.Add(layout.NewSpacer())
 	column2.Add(ledOnCheckBox)

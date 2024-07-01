@@ -25,7 +25,7 @@ import (
 
 const (
 	MaxSerialDataLines = 100_000
-	Version            = "1.1.3"
+	Version            = "1.1.4"
 )
 
 type TickStamp struct {
@@ -101,6 +101,7 @@ type Config struct {
 	pubxCheckBox         *widget.Check
 	pCheckBox            *widget.Check
 	modeCheckBox         *widget.Check
+	ledOnCheckbox        *widget.Check
 	cmdEntry             *widget.Entry
 	pathEntry            *widget.Entry
 	utcEventTime         *widget.Entry
@@ -139,6 +140,9 @@ var cmdText string
 
 //go:embed sharpCapError.txt
 var sharpCapErr string
+
+//go:embed noUTCtest.txt
+var noUTCtest string
 
 var onePPSdata OnePPSdata
 
@@ -229,8 +233,11 @@ func processClient(connection net.Conn) {
 			break
 		}
 	}
-	fmt.Println("Received: ", strings.TrimSpace(string(buffer[:bytesRead])))
+
+	cmd := strings.TrimSpace(string(buffer[:bytesRead]))
+	fmt.Println("Received: ", cmd)
 	connection.Close()
+	sendCommandToArduino(cmd)
 }
 
 func main() {
@@ -335,7 +342,7 @@ func checkSharpCapAvailability() {
 	if err != nil {
 		showMsg("SharpCap unavailable", sharpCapErr, 600, 550)
 		myWin.SharpCapAvailable = false
-		fmt.Println("SharpCap not running") // TODO Popup a message window
+		fmt.Println("SharpCap not running")
 	} else {
 		myWin.SharpCapAvailable = true
 	}
@@ -451,8 +458,7 @@ func calcFlashEdgeTimes() {
 					edgeStr = fmt.Sprintf("%d off %s\n", i+1, newTimestamp+"Z")
 				}
 				_, fileErr := myWin.flashEdgeLogfile.WriteString(edgeStr)
-				// TODO Remove the following print
-				fmt.Println(edgeStr)
+				//fmt.Println(edgeStr)
 				if fileErr != nil {
 					fmt.Println(fmt.Errorf("calcFlashEdgeTimes(): %w", fileErr))
 				}
@@ -521,7 +527,7 @@ func validUTCtime() bool {
 
 func calculateStartTime(delta int64) string {
 	exposureStr := getResponse(myWin.SharpCapConn, "exposure")
-	fmt.Println("Rcvd:", exposureStr)
+	fmt.Println("Rcvd:", exposureStr, "ms exposure time")
 	if exposureStr == "No camera selected" {
 		showMsg("SharpCap error", "\nNo camera selected!\n", 200, 200)
 		return "No camera selected"
@@ -535,12 +541,6 @@ func calculateStartTime(delta int64) string {
 	readingsPerSecond := 1000 / exposureMs
 	fmt.Println(readingsPerSecond, "readings per second")
 	neededFlashTime := int(math.Ceil(10 / readingsPerSecond))
-	//if neededFlashTime < 1.0 {
-	//	neededFlashTime = 1
-	//} else {
-	//	neededFlashTime = math.Ceil(neededFlashTime)
-	//}
-	// Set the flash duration (seconds)
 	cmd := fmt.Sprintf("flash duration %d", neededFlashTime)
 	sendCommandToArduino(cmd)
 
@@ -549,8 +549,8 @@ func calculateStartTime(delta int64) string {
 	flashTime := int64(neededFlashTime) // seconds
 	startTime := unixTimeNow + delta
 	d := unixTimeNow - startTime
-	fmt.Println("time now:", unixTimeNow)
-	fmt.Println("time until start of acquisition:", -d)
+	fmt.Println("unixTime now:", unixTimeNow)
+	fmt.Println("unixTime at start of acquisition:", unixTimeNow-d)
 	if d < 0 {
 		myWin.leaderStartTime = startTime
 		myWin.firstFlashTime = myWin.leaderStartTime + flashTime
@@ -578,7 +578,11 @@ func armUTCstart() {
 		}
 
 		utcText := myWin.utcEventTime.Text
-		fmt.Println("UTC event time:", utcText)
+		if utcText != "" {
+			fmt.Println("\nUTC event time supplied:", utcText)
+		} else {
+			fmt.Println("")
+		}
 
 		var result string
 		myWin.pastLeader = false
@@ -589,8 +593,13 @@ func armUTCstart() {
 		workDir := getWorkDir()
 		createLogAndFlashEdgeFiles(workDir)
 
+		if myWin.ledOnCheckbox.Checked {
+			myWin.ledOnCheckbox.SetChecked(false)
+			time.Sleep(time.Second)
+		}
+
 		if utcText == "" {
-			fmt.Println("Start 10 seconds from now")
+			fmt.Println("Start test recording 10 seconds from now")
 			result = calculateStartTime(10)
 		} else {
 			if !validUTCtime() {
@@ -614,6 +623,7 @@ func armUTCstart() {
 		myWin.utcStartArmed = false
 		myWin.armUTCbutton.Importance = widget.MediumImportance
 		myWin.armUTCbutton.SetText("Arm UTC start")
+		fmt.Println("UTC start cancelled.")
 	}
 }
 
