@@ -3,11 +3,11 @@ SharpCap is not running on this machine.
 
 Expected work order:
 
-1) Wait for IotaGFT Status to report TimeValid PPS (the GPS chip sometimes need extended time begin emitting GPS time)
+1) Open the SharpCap application and set (if necessary) the TELESCOP and OBSERVER fields (File|SharpCap settings|Saving).
 
-2) Open the SharpCap application and set (if necessary) the TELESCOP and OBSERVER fields (File|SharpCap settings|Saving).
+2) Wait for IotaGFT Status to report TimeValid PPS (the GPS chip sometimes need extended time begin emitting GPS time)
 
-3) Select a camera.
+3) Select a camera in SharpCap.
 
 4) Any other SharpCap tools and scripts can be run at any convenient time like "plate solve", "goto", etc.
 
