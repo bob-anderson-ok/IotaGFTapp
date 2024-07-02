@@ -1,3 +1,5 @@
+# IotaGFTapp   - an Iota utility
+
 Expected work order:
 
 1) Wait for IotaGFT Status to report TimeValid PPS (the GPS chip sometimes need extended time begin emitting GPS time)
