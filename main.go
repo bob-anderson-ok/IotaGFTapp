@@ -25,7 +25,7 @@ import (
 
 const (
 	MaxSerialDataLines = 100_000
-	Version            = "1.1.4"
+	Version            = "1.1.5"
 )
 
 type TickStamp struct {
@@ -315,19 +315,11 @@ func main() {
 		myWin.SharpCapConn.Close()
 	}
 
-	//calcFlashEdgeTimes() // These get written to the flashEdgeLogfile
-
 	_ = myWin.logFile.Close()
 	_ = myWin.flashEdgeLogfile.Close()
 }
 
 func getWorkDir() string {
-	//t := time.Now().UTC()
-	//timestamp := t.Format(time.RFC822Z)
-	//// Replace spaces with - (to make a more friendly file name)
-	//timestamp = strings.Replace(timestamp, " ", "_", -1)
-	//timestamp = strings.Replace(timestamp, ":", "_", -1)
-	//timestamp = timestamp[0:len(timestamp)-6] + "UTC"
 	workDir, err := os.Getwd()
 	if err != nil {
 		fmt.Println("os.Getwd() failed to return working directory")
@@ -347,18 +339,6 @@ func checkSharpCapAvailability() {
 		myWin.SharpCapAvailable = true
 	}
 }
-
-// exists returns whether the given file or directory exists
-//func exists(path string) (bool, error) {
-//	_, err := os.Stat(path)
-//	if err == nil {
-//		return true, nil
-//	}
-//	if os.IsNotExist(err) {
-//		return false, nil
-//	}
-//	return false, err
-//}
 
 func createLogAndFlashEdgeFiles(workDir string) bool {
 	// Form the full path to the standard logfile
@@ -400,40 +380,15 @@ func addToTextOutDisplay(msg string) {
 }
 
 func initializeStartingWindow(myWin *Config) {
-	myWin.App = app.New()
+	// We supply an ID (hopefully unique) because we need to use the preferences API
+	myApp := app.NewWithID("com.gmail.ok.anderson.bob2")
+	myWin.App = myApp
+
 	myWin.MainWindow = myWin.App.NewWindow("IOTA GFT " + Version)
 	myWin.MainWindow.Resize(fyne.Size{Height: 600, Width: 1100})
 	myWin.MainWindow.SetMaster() // As 'master', if the window is closed, the application quits.
 	myWin.MainWindow.CenterOnScreen()
 }
-
-//func deleteLogfile() {
-//	filePath := myWin.logFile.Name()
-//	fmt.Println("Deleting log file:", filePath)
-//	err := myWin.logFile.Close()
-//	if err != nil {
-//		fmt.Println(fmt.Errorf("deleteLogfile(): %w", err))
-//	}
-//	myWin.logFile = nil
-//	err = os.Remove(filePath)
-//	if err != nil {
-//		fmt.Println(fmt.Errorf("deleteLogfile(): %w", err))
-//	}
-//}
-
-//func deleteEdgeTimesFile() {
-//	filePath := myWin.flashEdgeLogfile.Name()
-//	fmt.Println("Deleting edge times file:", filePath)
-//	err := myWin.flashEdgeLogfile.Close()
-//	if err != nil {
-//		fmt.Println(fmt.Errorf("deleteEdgeTimesFile(): %w", err))
-//	}
-//	myWin.flashEdgeLogfile = nil
-//	err = os.Remove(filePath)
-//	if err != nil {
-//		fmt.Println(fmt.Errorf("deleteEdgeTimesFile(): %w", err))
-//	}
-//}
 
 func calcFlashEdgeTimes() {
 	//nEdges := len(flashEdges)

@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"image/color"
+	"strconv"
 )
 
 type forcedVariant struct {
@@ -40,6 +41,10 @@ func (app *Config) makeUI() {
 
 	topItem := container.NewVBox(app.statusLine)
 
+	blackThemeCheckbox := widget.NewCheck("Dark theme", func(checked bool) { changeTheme(checked) })
+	//leftItem.Add(blackThemeCheckbox)
+	blackThemeCheckbox.SetChecked(true)
+
 	// Compose the left hand column element of the main Border layout
 	leftItem := container.NewVBox()
 	helpButton := widget.NewButton("Help", func() { showHelp() })
@@ -62,9 +67,9 @@ func (app *Config) makeUI() {
 
 	leftItem.Add(layout.NewSpacer())
 
-	blackThemeCheckbox := widget.NewCheck("Dark theme", func(checked bool) { changeTheme(checked) })
+	//blackThemeCheckbox := widget.NewCheck("Dark theme", func(checked bool) { changeTheme(checked) })
 	leftItem.Add(blackThemeCheckbox)
-	blackThemeCheckbox.SetChecked(true)
+	//blackThemeCheckbox.SetChecked(true)
 
 	leftItem.Add(canvas.NewText("=========================", color.NRGBA{R: 180, A: 255}))
 
@@ -121,7 +126,12 @@ func (app *Config) makeUI() {
 	column1.Add(layout.NewSpacer())
 
 	flashIntensitySlider := widget.NewSlider(0, 3*255)
-	flashIntensitySlider.Value = 400
+
+	sticky := myWin.App.Preferences().StringWithFallback("LedIntensity", "400")
+	//fmt.Println("LedIntensity", sticky)
+	ledSetting, _ := strconv.Atoi(sticky)
+	flashIntensitySlider.Value = float64(ledSetting)
+
 	flashIntensitySlider.Orientation = 1 // Vertical
 	flashIntensitySlider.OnChangeEnded = func(value float64) {
 		processFlashIntensitySliderChange(value)
@@ -221,6 +231,10 @@ func processFlashIntensitySliderChange(value float64) {
 	v := int64(value)
 	ledRange := v / 256
 	level := v - ledRange*255
+	levelStr := fmt.Sprintf("%0.0f", value)
+	//fmt.Println("Saving LedIntensity as:", levelStr)
+	myWin.App.Preferences().SetString("LedIntensity", levelStr)
+
 	//fmt.Printf("range: %d  level: %d\n", ledRange, level)
 	sendCommandToArduino(fmt.Sprintf("flash range %d", ledRange))
 	sendCommandToArduino(fmt.Sprintf("flash level %d", level))
