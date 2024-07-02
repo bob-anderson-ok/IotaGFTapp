@@ -1,0 +1,27 @@
+Expected work order:
+
+1) Wait for IotaGFT Status to report TimeValid PPS (the GPS chip sometimes need extended time begin emitting GPS time)
+
+2) Open the SharpCap application and set (if necessary) the TELESCOP and OBSERVER fields (File|SharpCap settings|Saving).
+
+3) Select a camera.
+
+4) Any other SharpCap tools and scripts can be run at any convenient time like "plate solve", "goto", etc.
+
+5) Select an exposure time and gain that is appropriate for the observation.
+
+6) Activate the histogram tool in SharpCap.
+
+7) With the LED off, set the black level so that there is no background clipping visible in the histogram.
+
+8) Turn the LED on (the check box at lower right) and use the LED intensity slider to set an intensity that causes
+      the histogram to register a small increase in overall pixel intensities. This value is "sticky" between sessions.
+
+9) Set UTC event time (time at center of event) and recording duration and click the Arm UTC start button OR
+      leave this field empty, in which case the event time is assumed to be 10 seconds in the future.
+      This gives a simple way to run a test recording to make sure that the observation parameters
+      are set properly.
+
+
+NOTE: If you make any changes to the camera exposure time, BE SURE TO click the Arm UTC start button
+           again so that the change can be incorporated in the start time and flash duration.
