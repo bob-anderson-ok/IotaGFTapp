@@ -11,18 +11,18 @@ General
     6 'standard' sentences: 4 NMEA GPS sentences plus a P (for pulse) and a MODE that
     reports the internal status of the GFT. There are other sentences that will be emitted
     in response to 'events' such as a detected error, a command entry, a command response,
-    the LED turning on or off, etc. These 'other' sentences are always displayed but not
+    the LED turning on or off, etc. These 'other' sentences are always displayed but NOT
     written to the standard log.
 
-    All output from the Arduino is recorded in a log file (LOG_GFT*.txt) automatically named
+    All output from the Arduino is recorded in a log file (IotaGFT_LOG.txt) automatically named
     from the date and time - UTC is used for ease of correlation with an occultation time.
 
     All flash edges that happen during the time this app is active are given UTC timestamps
-    and written to a log file (FLASH_EDGE_TIMES*.txt).
+    and written to a log file (FLASH_EDGE_TIMES.txt).
 
-    The flash edge log file IS WRITTEN WHEN THE APP IS CLOSED!
-
-    Log files are always created in the directory where the app is placed (started from).
+    Log files are always created in the directory where the app is placed (started from) and
+    moved to the SharpCap folder containing the recorded fits files at the end of the recording
+    session to form a complete record of the recording.
 
 
 Top line status bar
