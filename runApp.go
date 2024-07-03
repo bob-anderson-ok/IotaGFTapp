@@ -127,14 +127,16 @@ func runApp(myWin *Config) {
 						getResponse(myWin.SharpCapConn, "stop")
 						sharpCapPath := getResponse(myWin.SharpCapConn, "lastfilepath")
 						dirPath, _ := filepath.Split(sharpCapPath)
-						showMsg("Path to SharpCap capture folder:", dirPath, 200, 800)
-						//myWin.pathEntry.SetText(dirPath)
+
+						if !myWin.shutdownCheckBox.Checked {
+							showMsg("Path to SharpCap capture folder:", dirPath, 200, 800)
+						}
 
 						calcFlashEdgeTimes() // These get written to the flashEdgeLogfile
 						myWin.flashEdgeLogfile.Close()
 						flashEdges = []FlashEdge{}
 
-						// Reset all of the scheduling flags
+						// Reset all scheduling flags
 						myWin.utcStartArmed = false
 						myWin.pastLeader = false
 						myWin.pastFlashOne = false
@@ -163,7 +165,15 @@ func runApp(myWin *Config) {
 							needTickMsg = false
 						}
 
-						go startFitsReader(dirPath, err)
+						if myWin.autoRunFitsReaderCheckBox.Checked {
+							go startFitsReader(dirPath, err)
+						}
+
+						if myWin.shutdownCheckBox.Checked {
+							if err := exec.Command("cmd", "/C", "shutdown", "/s").Run(); err != nil {
+								fmt.Println("Failed to initiate shutdown:", err)
+							}
+						}
 
 					}
 				}

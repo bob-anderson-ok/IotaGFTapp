@@ -61,15 +61,11 @@ func (app *Config) makeUI() {
 	closePortButton := widget.NewButton("Close serial port", func() { closeCurrentPort() })
 	leftItem.Add(closePortButton)
 
-	leftItem.Add(layout.NewSpacer())
-
 	leftItem.Add(widget.NewButton("Show 1pps history", func() { show1ppsHistory() }))
 
-	leftItem.Add(layout.NewSpacer())
-
-	//blackThemeCheckbox := widget.NewCheck("Dark theme", func(checked bool) { changeTheme(checked) })
 	leftItem.Add(blackThemeCheckbox)
-	//blackThemeCheckbox.SetChecked(true)
+
+	leftItem.Add(layout.NewSpacer())
 
 	leftItem.Add(canvas.NewText("=========================", color.NRGBA{R: 180, A: 255}))
 
@@ -83,10 +79,24 @@ func (app *Config) makeUI() {
 	app.recordingLength.OnSubmitted = func(stuff string) { processRecordingLengthEntry(stuff) }
 	leftItem.Add(app.recordingLength)
 
+	myWin.autoRunFitsReaderCheckBox = widget.NewCheck("auto-run FitsReader", autoRunFitsReader)
+
+	leftItem.Add(myWin.autoRunFitsReaderCheckBox)
+
+	myWin.shutdownCheckBox = widget.NewCheck("shutdown CPU at end-of-recording", shutdownEnable)
+	shutdownChecked := myWin.App.Preferences().BoolWithFallback("ShutdownComputerAtEndOfRecording", false)
+	myWin.shutdownCheckBox.SetChecked(shutdownChecked)
+	leftItem.Add(myWin.shutdownCheckBox)
+
+	autoRunChecked := myWin.App.Preferences().BoolWithFallback("AutoRunFitsReader", true)
+	myWin.autoRunFitsReaderCheckBox.SetChecked(autoRunChecked)
+
 	app.armUTCbutton = widget.NewButton("Arm UTC start", func() { armUTCstart() })
 	leftItem.Add(app.armUTCbutton)
 
 	leftItem.Add(canvas.NewText("=========================", color.NRGBA{R: 180, A: 255}))
+
+	leftItem.Add(layout.NewSpacer())
 
 	leftItem.Add(widget.NewButton("Clear output", func() { clearSerialOutputDisplay() }))
 	app.autoScroll = widget.NewCheck("Auto-scroll enabled", func(bool) {})
@@ -154,15 +164,6 @@ func (app *Config) makeUI() {
 	app.cmdEntry.OnSubmitted = func(str string) { sendCommandToArduino("") }
 
 	app.pathEntry = widget.NewEntry()
-	//app.pathEntry.OnSubmitted = func(str string) { changeLogAndEdgeFiles(str) }
-
-	//bob := container.NewBorder(
-	//	nil,
-	//	nil,
-	//	canvas.NewText("Path to FITS folder:", nil),
-	//	nil,
-	//	app.pathEntry,
-	//)
 
 	bottomEntry := container.NewBorder( // top, bottom, left, right, center
 		nil,
@@ -198,6 +199,22 @@ func (app *Config) makeUI() {
 		app.textOutDisplay)
 
 	app.MainWindow.SetContent(content)
+}
+
+func autoRunFitsReader(checked bool) {
+	if myWin.shutdownCheckBox.Checked {
+		checked = false
+	}
+	myWin.App.Preferences().SetBool("AutoRunFitsReader", checked)
+	myWin.autoRunFitsReaderCheckBox.SetChecked(checked)
+}
+
+func shutdownEnable(checked bool) {
+	myWin.App.Preferences().SetBool("ShutdownComputerAtEndOfRecording", checked)
+	if checked {
+		autoRunFitsReader(false)
+		myWin.autoRunFitsReaderCheckBox.SetChecked(false)
+	}
 }
 
 func processUTCeventTimeEntry(stuff string) {

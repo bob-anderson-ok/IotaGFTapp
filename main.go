@@ -25,7 +25,7 @@ import (
 
 const (
 	MaxSerialDataLines = 100_000
-	Version            = "1.1.7"
+	Version            = "1.1.8"
 )
 
 type TickStamp struct {
@@ -71,59 +71,61 @@ type GPSdata struct {
 }
 
 type Config struct {
-	App                  fyne.App
-	SharpCapConn         net.Conn
-	SharpCapAvailable    bool
-	flashIntensitySlider *widget.Slider
-	MainWindow           fyne.Window
-	HelpViewer           *widget.RichText
-	statusLine           *fyne.Container
-	statusStatus         *canvas.Text
-	latitudeStatus       *canvas.Text
-	longitudeStatus      *canvas.Text
-	altitudeStatus       *canvas.Text
-	dateTimeStatus       *canvas.Text
-	comPortInUse         *widget.Label
-	portsAvailable       []string
-	autoScroll           *widget.Check
-	textOut              []string
-	textOutDisplay       *widget.List
-	selectComPort        *widget.Select
-	comPortName          string
-	curBaudRate          int
-	serialPort           serial.Port
-	spMutex              sync.Mutex
-	lastPvalue           int64
-	logCheckBox          *widget.Check
-	gpggaCheckBox        *widget.Check
-	gprmcCheckBox        *widget.Check
-	gpdtmCheckBox        *widget.Check
-	pubxCheckBox         *widget.Check
-	pCheckBox            *widget.Check
-	modeCheckBox         *widget.Check
-	ledOnCheckbox        *widget.Check
-	cmdEntry             *widget.Entry
-	pathEntry            *widget.Entry
-	utcEventTime         *widget.Entry
-	eventDateTime        time.Time
-	leaderStartTime      int64
-	firstFlashTime       int64
-	secondFlashTime      int64
-	endOfRecording       int64
-	recordingLength      *widget.Entry
-	recordingDuration    float64
-	logFilePath          string
-	logFile              *os.File
-	flashEdgeLogfilePath string
-	flashEdgeLogfile     *os.File
-	keepLogFile          bool
-	gotFirst1PPS         bool
-	utcStartArmed        bool
-	pastLeader           bool
-	pastFlashOne         bool
-	pastFlashTwo         bool
-	pastEnd              bool
-	armUTCbutton         *widget.Button
+	App                       fyne.App
+	SharpCapConn              net.Conn
+	SharpCapAvailable         bool
+	flashIntensitySlider      *widget.Slider
+	MainWindow                fyne.Window
+	HelpViewer                *widget.RichText
+	statusLine                *fyne.Container
+	statusStatus              *canvas.Text
+	latitudeStatus            *canvas.Text
+	longitudeStatus           *canvas.Text
+	altitudeStatus            *canvas.Text
+	dateTimeStatus            *canvas.Text
+	comPortInUse              *widget.Label
+	portsAvailable            []string
+	autoScroll                *widget.Check
+	textOut                   []string
+	textOutDisplay            *widget.List
+	selectComPort             *widget.Select
+	comPortName               string
+	curBaudRate               int
+	serialPort                serial.Port
+	spMutex                   sync.Mutex
+	lastPvalue                int64
+	logCheckBox               *widget.Check
+	gpggaCheckBox             *widget.Check
+	gprmcCheckBox             *widget.Check
+	gpdtmCheckBox             *widget.Check
+	pubxCheckBox              *widget.Check
+	pCheckBox                 *widget.Check
+	modeCheckBox              *widget.Check
+	ledOnCheckbox             *widget.Check
+	autoRunFitsReaderCheckBox *widget.Check
+	shutdownCheckBox          *widget.Check
+	cmdEntry                  *widget.Entry
+	pathEntry                 *widget.Entry
+	utcEventTime              *widget.Entry
+	eventDateTime             time.Time
+	leaderStartTime           int64
+	firstFlashTime            int64
+	secondFlashTime           int64
+	endOfRecording            int64
+	recordingLength           *widget.Entry
+	recordingDuration         float64
+	logFilePath               string
+	logFile                   *os.File
+	flashEdgeLogfilePath      string
+	flashEdgeLogfile          *os.File
+	keepLogFile               bool
+	gotFirst1PPS              bool
+	utcStartArmed             bool
+	pastLeader                bool
+	pastFlashOne              bool
+	pastFlashTwo              bool
+	pastEnd                   bool
+	armUTCbutton              *widget.Button
 }
 
 //go:embed help.txt
@@ -385,7 +387,7 @@ func initializeStartingWindow(myWin *Config) {
 	myWin.App = myApp
 
 	myWin.MainWindow = myWin.App.NewWindow("IOTA GFT " + Version)
-	myWin.MainWindow.Resize(fyne.Size{Height: 600, Width: 1100})
+	myWin.MainWindow.Resize(fyne.Size{Height: 800, Width: 1100})
 	myWin.MainWindow.SetMaster() // As 'master', if the window is closed, the application quits.
 	myWin.MainWindow.CenterOnScreen()
 }

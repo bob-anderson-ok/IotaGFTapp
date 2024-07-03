@@ -88,6 +88,28 @@ Show 1pps history (button)
     Dark theme is selected by default as this is likely to be the desirable
     theme during and observation. Uncheck this box to return to light theme.
 
+(entry box) UTC event date/time
+
+    Enter the center time of the event in the format yyyy-mm-dd hh:mm:ss
+
+(entry box) Recording length (sec)
+
+    Enter the desired recording time (in seconds). The "event" will be centered in
+    this time region.
+
+(check box) auto-run FitsReader
+
+    FitsReader is the app that will process the flash goalposts and insert GPS
+    accurate timestamps in each fits file of the SharpCap recording. You may
+    not want this app to be started automatically if you are doing an unattended
+    recording.
+
+(check box) shutdown CPU at end-of-recording
+
+    For unattended operation, you ask that the CPU be shutdown at the end of the
+    recording to save power. If checked, the auto-run FitsReader will be disabled
+    as well.
+
 Clear output (button)
 
     Click this button to clear the central panel
@@ -113,5 +135,3 @@ For setting the LED flash intensity conveniently, there is a checkbox labeled 'L
 at the lower right corner. When this is checked, a vertical slider appears at the
 right edge of the window. Dragging this slider will change the flash intensity
 by changing the effective current to the LED over a range of about 10,000 to 1
-
-BE SURE TO TURN THE LED BACK OFF BEFORE RECORDING THE OBSERVATION!
