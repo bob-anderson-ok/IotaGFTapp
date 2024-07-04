@@ -25,7 +25,7 @@ import (
 
 const (
 	MaxSerialDataLines = 100_000
-	Version            = "1.1.8"
+	Version            = "1.2.0"
 )
 
 type TickStamp struct {
@@ -239,7 +239,55 @@ func processClient(connection net.Conn) {
 	cmd := strings.TrimSpace(string(buffer[:bytesRead]))
 	fmt.Println("Received: ", cmd)
 	connection.Close()
-	sendCommandToArduino(cmd)
+
+	if cmd == "flash now" {
+		sendCommandToArduino(cmd)
+		return
+	}
+
+	if strings.Contains(cmd, "setUTCeventTime") {
+		if cmd != "setUTCeventTime" { // There is a UTC time string in the command
+			myWin.utcEventTime.SetText(cmd[16:])
+		} else {
+			// If no UTC time string is in the command,
+			// we clear the UTC event time to activate the "10 seconds from now" test
+			myWin.utcEventTime.SetText("")
+		}
+		return
+	}
+
+	if strings.Contains(cmd, "recordingTime") {
+		myWin.recordingLength.SetText(cmd[14:])
+		return
+	}
+
+	if cmd == "setShutdownTrue" {
+		shutdownEnable(true)
+		myWin.shutdownCheckBox.SetChecked(true)
+		return
+	}
+
+	if cmd == "setShutdownFalse" {
+		shutdownEnable(false)
+		myWin.shutdownCheckBox.SetChecked(false)
+		return
+	}
+
+	if cmd == "setAutorunTrue" {
+		autoRunFitsReader(true)
+		return
+	}
+
+	if cmd == "setAutorunFalse" {
+		autoRunFitsReader(false)
+		return
+	}
+
+	if cmd == "armUTCstart" {
+		armUTCstart()
+		return
+	}
+
 }
 
 func main() {
@@ -471,15 +519,16 @@ func validRecordingTime() bool {
 	return true
 }
 
-func validUTCtime() bool {
+func validUTCtime() (bool, int64) {
 	var textGiven = myWin.utcEventTime.Text
 	utcTime, err := time.Parse(time.DateTime, textGiven)
+	unixTime := utcTime.Unix()
 	if err != nil {
-		return false
+		return false, 0
 	}
 	fmt.Println("utc date/time entered:", utcTime)
 	myWin.eventDateTime = utcTime
-	return true
+	return true, unixTime
 }
 
 func calculateStartTime(delta int64) string {
@@ -498,16 +547,25 @@ func calculateStartTime(delta int64) string {
 	readingsPerSecond := 1000 / exposureMs
 	fmt.Println(readingsPerSecond, "readings per second")
 	neededFlashTime := int(math.Ceil(10 / readingsPerSecond))
+	flashTime := int64(neededFlashTime) // seconds
 	cmd := fmt.Sprintf("flash duration %d", neededFlashTime)
 	sendCommandToArduino(cmd)
 
+	var offset int64
+
+	if delta == 0 {
+		// We want to set a recording to start 10 seconds from now
+		offset = -10
+	} else {
+		correctionForLeaderDelayAndFlashOneDelay := int64(1) // seconds
+		offset = 2*flashTime + int64(myWin.recordingDuration/2) - correctionForLeaderDelayAndFlashOneDelay
+	}
 	unixTimeNow := gpsData.unixTime
 
-	flashTime := int64(neededFlashTime) // seconds
-	startTime := unixTimeNow + delta
+	startTime := unixTimeNow + delta - offset
 	d := unixTimeNow - startTime
 	fmt.Println("unixTime now:", unixTimeNow)
-	fmt.Println("unixTime at start of acquisition:", unixTimeNow-d)
+	fmt.Println("unixTime at start of acquisition:", startTime, "(seconds in the future:", -d, ")")
 	if d < 0 {
 		myWin.leaderStartTime = startTime
 		myWin.firstFlashTime = myWin.leaderStartTime + flashTime
@@ -515,7 +573,7 @@ func calculateStartTime(delta int64) string {
 		myWin.endOfRecording = myWin.secondFlashTime + 3*flashTime
 		return "ok"
 	} else {
-		return "start time is in the past"
+		return fmt.Sprintf("start time is in the past by %d seconds.", d)
 	}
 }
 
@@ -557,13 +615,18 @@ func armUTCstart() {
 
 		if utcText == "" {
 			fmt.Println("Start test recording 10 seconds from now")
-			result = calculateStartTime(10)
+			result = calculateStartTime(0)
 		} else {
-			if !validUTCtime() {
+			ok, unixTime := validUTCtime()
+			if !ok {
 				showMsg("Invalid UTC date/time", utcTimeError, 250, 400)
 				return
 			}
-			result = calculateStartTime(0)
+			// TODO Convert UTC string to unixTime and compute proper delta
+			delta := unixTime - gpsData.unixTime
+			// calculateStartTime will calculate offsets to allow for leader time, flash time,
+			// and half of the recording duration
+			result = calculateStartTime(delta)
 		}
 
 		if result != "ok" {
