@@ -25,7 +25,7 @@ import (
 
 const (
 	MaxSerialDataLines = 100_000
-	Version            = "1.2.0"
+	Version            = "1.2.1"
 )
 
 type TickStamp struct {
@@ -622,7 +622,6 @@ func armUTCstart() {
 				showMsg("Invalid UTC date/time", utcTimeError, 250, 400)
 				return
 			}
-			// TODO Convert UTC string to unixTime and compute proper delta
 			delta := unixTime - gpsData.unixTime
 			// calculateStartTime will calculate offsets to allow for leader time, flash time,
 			// and half of the recording duration
