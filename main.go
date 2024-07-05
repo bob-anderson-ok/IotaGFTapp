@@ -25,7 +25,7 @@ import (
 
 const (
 	MaxSerialDataLines = 100_000
-	Version            = "1.2.1"
+	Version            = "1.2.3"
 )
 
 type TickStamp struct {
@@ -185,6 +185,13 @@ func msgTrim(msg string) string {
 	return strings.TrimSpace(msg)
 }
 
+func sendResponse(conn net.Conn, cmd string) error {
+	_, err := conn.Write(makeMsg(cmd))
+	if err != nil {
+		fmt.Println("Error writing:", err.Error())
+	}
+	return err
+}
 func getResponse(conn net.Conn, cmd string) string {
 	_, err := conn.Write(makeMsg(cmd))
 	if err != nil {
@@ -238,56 +245,196 @@ func processClient(connection net.Conn) {
 
 	cmd := strings.TrimSpace(string(buffer[:bytesRead]))
 	fmt.Println("Received: ", cmd)
-	connection.Close()
 
 	if cmd == "flash now" {
 		sendCommandToArduino(cmd)
+		err := sendResponse(connection, "OK")
+		if err != nil {
+			fmt.Println(err)
+		}
+		connection.Close()
+		return
+	}
+
+	if strings.Contains(cmd, "setLEDintensity") {
+		_, intensityStr, found := strings.Cut(cmd, " ")
+		if !found { // If no parameter given for LED intensity
+			err := sendResponse(connection, "Invalid intensity value")
+			if err != nil {
+				fmt.Println(err)
+			}
+		} else {
+			intensity, err := strconv.ParseFloat(intensityStr, 64)
+			if err != nil {
+				err := sendResponse(connection, "Invalid intensity value")
+				if err != nil {
+					fmt.Println(err)
+				}
+			} else if intensity < 0.0 || intensity > 3*255 {
+				err := sendResponse(connection, "Invalid intensity value")
+				if err != nil {
+					fmt.Println(err)
+				}
+			} else {
+				processFlashIntensitySliderChange(intensity)
+				err := sendResponse(connection, "OK")
+				if err != nil {
+					fmt.Println(err)
+				}
+			}
+		}
+		connection.Close()
+		return
+	}
+
+	if strings.Contains(cmd, "flash duration") {
+		parts := strings.Split(cmd, " ")
+		if len(parts) != 3 {
+			err := sendResponse(connection, "Invalid flash duration")
+			if err != nil {
+				fmt.Println(err)
+			}
+		} else {
+			duration, err := strconv.Atoi(parts[2])
+			if err != nil || duration < 1 {
+				err := sendResponse(connection, "Invalid flash duration")
+				if err != nil {
+					fmt.Println(err)
+				}
+			} else {
+				sendCommandToArduino(cmd)
+				err = sendResponse(connection, "OK")
+				if err != nil {
+					fmt.Println(err)
+				}
+			}
+		}
+
+		connection.Close()
 		return
 	}
 
 	if strings.Contains(cmd, "setUTCeventTime") {
-		if cmd != "setUTCeventTime" { // There is a UTC time string in the command
-			myWin.utcEventTime.SetText(cmd[16:])
-		} else {
-			// If no UTC time string is in the command,
-			// we clear the UTC event time to activate the "10 seconds from now" test
+		_, utc, found := strings.Cut(cmd, " ")
+		if !found { // If event time is empty
+			err := sendResponse(connection, "OK")
+			if err != nil {
+				fmt.Println(err)
+			}
 			myWin.utcEventTime.SetText("")
+		} else {
+			myWin.utcEventTime.SetText(utc)
+			ok, _ := validUTCtime()
+			if ok {
+				err := sendResponse(connection, "OK")
+				if err != nil {
+					fmt.Println(err)
+				}
+			} else {
+				err := sendResponse(connection, "Invalid UTC time format")
+				if err != nil {
+					fmt.Println(err)
+				}
+			}
 		}
+		connection.Close()
 		return
 	}
 
 	if strings.Contains(cmd, "recordingTime") {
 		myWin.recordingLength.SetText(cmd[14:])
+		if validRecordingTime() {
+			err := sendResponse(connection, "OK")
+			if err != nil {
+				fmt.Println(err)
+			}
+		} else {
+			err := sendResponse(connection, "Invalid recording time")
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
 		return
 	}
 
 	if cmd == "setShutdownTrue" {
 		shutdownEnable(true)
 		myWin.shutdownCheckBox.SetChecked(true)
+		err := sendResponse(connection, "OK")
+		if err != nil {
+			fmt.Println(err)
+		}
+		connection.Close()
 		return
 	}
 
 	if cmd == "setShutdownFalse" {
 		shutdownEnable(false)
 		myWin.shutdownCheckBox.SetChecked(false)
+		err := sendResponse(connection, "OK")
+		if err != nil {
+			fmt.Println(err)
+		}
+		connection.Close()
 		return
 	}
 
 	if cmd == "setAutorunTrue" {
 		autoRunFitsReader(true)
+		err := sendResponse(connection, "OK")
+		if err != nil {
+			fmt.Println(err)
+		}
+		connection.Close()
 		return
 	}
 
 	if cmd == "setAutorunFalse" {
 		autoRunFitsReader(false)
+		err := sendResponse(connection, "OK")
+		if err != nil {
+			fmt.Println(err)
+		}
+		connection.Close()
+		return
+	}
+
+	if cmd == "setLEDon" {
+		showIntensitySlider(true)
+		err := sendResponse(connection, "OK")
+		if err != nil {
+			fmt.Println(err)
+		}
+		connection.Close()
+		return
+	}
+
+	if cmd == "setLEDoff" {
+		showIntensitySlider(false)
+		err := sendResponse(connection, "OK")
+		if err != nil {
+			fmt.Println(err)
+		}
+		connection.Close()
 		return
 	}
 
 	if cmd == "armUTCstart" {
-		armUTCstart()
+		ans := armUTCstart()
+		err := sendResponse(connection, ans)
+		if err != nil {
+			fmt.Println(err)
+		}
+		connection.Close()
 		return
 	}
 
+	err := sendResponse(connection, "Unimplemented command")
+	if err != nil {
+		fmt.Println(err)
+	}
+	connection.Close()
+	return
 }
 
 func main() {
@@ -573,23 +720,23 @@ func calculateStartTime(delta int64) string {
 		myWin.endOfRecording = myWin.secondFlashTime + 3*flashTime
 		return "ok"
 	} else {
-		return fmt.Sprintf("start time is in the past by %d seconds.", d)
+		return fmt.Sprintf("Start time is in the past by %d seconds.", d)
 	}
 }
 
-func armUTCstart() {
+func armUTCstart() string {
 	//fmt.Println("Arm UTC start clicked")
 	if !myWin.utcStartArmed {
 		if !myWin.SharpCapAvailable {
 			checkSharpCapAvailability()
 			if !myWin.SharpCapAvailable {
-				return
+				return "SharpCap not running"
 			}
 		}
 
 		if !validRecordingTime() {
 			showMsg("Invalid recording time", recordingLengthError, 250, 400)
-			return
+			return "Invalid recording time"
 		}
 
 		utcText := myWin.utcEventTime.Text
@@ -620,7 +767,7 @@ func armUTCstart() {
 			ok, unixTime := validUTCtime()
 			if !ok {
 				showMsg("Invalid UTC date/time", utcTimeError, 250, 400)
-				return
+				return "Invalid UTC date/time"
 			}
 			delta := unixTime - gpsData.unixTime
 			// calculateStartTime will calculate offsets to allow for leader time, flash time,
@@ -630,7 +777,7 @@ func armUTCstart() {
 
 		if result != "ok" {
 			showMsg("Start time error", "\n"+result+"\n", 250, 400)
-			return
+			return result
 		}
 
 		processFlashIntensitySliderChange(myWin.flashIntensitySlider.Value)
@@ -644,6 +791,7 @@ func armUTCstart() {
 		myWin.armUTCbutton.SetText("Arm UTC start")
 		fmt.Println("UTC start cancelled.")
 	}
+	return "OK"
 }
 
 func buildPlot() {
