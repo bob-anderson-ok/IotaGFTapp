@@ -71,11 +71,13 @@ func (app *Config) makeUI() {
 
 	leftItem.Add(canvas.NewText("UTC event date/time", nil))
 	app.utcEventTime = widget.NewEntry()
+	app.utcEventTime.SetText(myWin.App.Preferences().StringWithFallback("UTCstartTime", ""))
 	app.utcEventTime.OnSubmitted = func(stuff string) { processUTCeventTimeEntry(stuff) }
 	leftItem.Add(app.utcEventTime)
 
 	leftItem.Add(canvas.NewText("Recording length (sec)", nil))
 	app.recordingLength = widget.NewEntry()
+	app.recordingLength.SetText(myWin.App.Preferences().StringWithFallback("RecordingTime", ""))
 	app.recordingLength.OnSubmitted = func(stuff string) { processRecordingLengthEntry(stuff) }
 	leftItem.Add(app.recordingLength)
 
@@ -218,10 +220,12 @@ func shutdownEnable(checked bool) {
 }
 
 func processUTCeventTimeEntry(stuff string) {
+	myWin.App.Preferences().SetString("UTCstartTime", stuff)
 	fmt.Println(stuff)
 }
 
 func processRecordingLengthEntry(stuff string) {
+	myWin.App.Preferences().SetString("RecordingTime", stuff)
 	fmt.Println(stuff)
 }
 

@@ -25,7 +25,7 @@ import (
 
 const (
 	MaxSerialDataLines = 100_000
-	Version            = "1.2.3"
+	Version            = "1.2.5"
 )
 
 type TickStamp struct {
@@ -493,7 +493,7 @@ func main() {
 
 	go server()
 
-	checkSharpCapAvailability()
+	//connectToSharpCap()
 
 	// show and run the GUI
 	myWin.MainWindow.ShowAndRun()
@@ -525,15 +525,20 @@ func getWorkDir() string {
 	return workDir
 }
 
-func checkSharpCapAvailability() {
+func connectToSharpCap() bool {
 	var err error
+	if myWin.SharpCapAvailable {
+		_ = myWin.SharpCapConn.Close()
+	}
 	myWin.SharpCapConn, err = net.Dial(ServerType, ServerHost+":"+SharpCapPort)
 	if err != nil {
 		showMsg("SharpCap unavailable", sharpCapErr, 600, 550)
 		myWin.SharpCapAvailable = false
 		fmt.Println("SharpCap not running")
+		return false
 	} else {
 		myWin.SharpCapAvailable = true
+		return true
 	}
 }
 
@@ -727,17 +732,20 @@ func calculateStartTime(delta int64) string {
 func armUTCstart() string {
 	//fmt.Println("Arm UTC start clicked")
 	if !myWin.utcStartArmed {
-		if !myWin.SharpCapAvailable {
-			checkSharpCapAvailability()
+		if !connectToSharpCap() {
 			if !myWin.SharpCapAvailable {
+				myWin.App.Preferences().SetBool("ArmUTCstartTime", false)
 				return "SharpCap not running"
 			}
 		}
 
 		if !validRecordingTime() {
 			showMsg("Invalid recording time", recordingLengthError, 250, 400)
+			myWin.App.Preferences().SetBool("ArmUTCstartTime", false)
 			return "Invalid recording time"
 		}
+
+		myWin.App.Preferences().SetString("RecordingTime", myWin.recordingLength.Text)
 
 		utcText := myWin.utcEventTime.Text
 		if utcText != "" {
@@ -745,6 +753,8 @@ func armUTCstart() string {
 		} else {
 			fmt.Println("")
 		}
+
+		myWin.App.Preferences().SetString("UTCstartTime", myWin.utcEventTime.Text)
 
 		var result string
 		myWin.pastLeader = false
@@ -785,10 +795,13 @@ func armUTCstart() string {
 		myWin.armUTCbutton.SetText("UTC start armed and active")
 		myWin.armUTCbutton.Importance = widget.SuccessImportance
 		myWin.utcStartArmed = true
+		myWin.App.Preferences().SetBool("ArmUTCstartTime", true)
 	} else {
 		myWin.utcStartArmed = false
 		myWin.armUTCbutton.Importance = widget.MediumImportance
 		myWin.armUTCbutton.SetText("Arm UTC start")
+
+		myWin.App.Preferences().SetBool("ArmUTCstartTime", false)
 		fmt.Println("UTC start cancelled.")
 	}
 	return "OK"

@@ -110,6 +110,15 @@ Show 1pps history (button)
     recording to save power. If checked, the auto-run FitsReader will be disabled
     as well.
 
+Arm UTC start (button)
+
+    Arm the recording scheduler. This requires that SharpCap be running as we have to
+    the camera exposure time in order to properly compute a recording schedule.
+
+    If the 'arming' was successful, the button will turn green.
+
+    Clicking the green version of the button will disarm the scheduler.
+
 Clear output (button)
 
     Click this button to clear the central panel

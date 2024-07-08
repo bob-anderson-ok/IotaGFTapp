@@ -13,6 +13,12 @@ import (
 )
 
 func runApp(myWin *Config) {
+
+	//if myWin.App.Preferences().BoolWithFallback("ArmUTCstartTime", false) {
+	//	fmt.Println("We need to click the Arm UTC button")
+	//	armUTCstart()
+	//}
+
 	sentenceChan := make(chan string, 1)
 
 	// This runs infinitely, sending each sentence received to sentenceChan. It has a 2-second timeout
@@ -103,7 +109,12 @@ func runApp(myWin *Config) {
 						tickMsg += fmt.Sprint("Starting leader ")
 						needTickMsg = true
 						myWin.pastLeader = true
-						getResponse(myWin.SharpCapConn, "start")
+						if connectToSharpCap() {
+							getResponse(myWin.SharpCapConn, "start")
+						} else {
+							clearSchedule(myWin)
+							goto endSchedule
+						}
 					}
 
 					if tNow >= myWin.firstFlashTime && !myWin.pastFlashOne {
@@ -121,11 +132,20 @@ func runApp(myWin *Config) {
 					}
 
 					if tNow >= myWin.endOfRecording && !myWin.pastEnd {
+						myWin.App.Preferences().SetBool("ArmUTCstartTime", false)
+
 						tickMsg += fmt.Sprint("Recording ended\n")
 						myWin.pastEnd = true
 						needTickMsg = true
-						getResponse(myWin.SharpCapConn, "stop")
-						sharpCapPath := getResponse(myWin.SharpCapConn, "lastfilepath")
+
+						var sharpCapPath string
+						if connectToSharpCap() {
+							getResponse(myWin.SharpCapConn, "stop")
+							sharpCapPath = getResponse(myWin.SharpCapConn, "lastfilepath")
+						} else {
+							clearSchedule(myWin)
+							goto endSchedule
+						}
 						dirPath, _ := filepath.Split(sharpCapPath)
 
 						if !myWin.shutdownCheckBox.Checked {
@@ -136,15 +156,7 @@ func runApp(myWin *Config) {
 						myWin.flashEdgeLogfile.Close()
 						flashEdges = []FlashEdge{}
 
-						// Reset all scheduling flags
-						myWin.utcStartArmed = false
-						myWin.pastLeader = false
-						myWin.pastFlashOne = false
-						myWin.pastFlashTwo = false
-						myWin.pastEnd = false
-
-						myWin.armUTCbutton.Importance = widget.MediumImportance
-						myWin.armUTCbutton.SetText("Arm UTC start")
+						clearSchedule(myWin)
 
 						err := os.Rename(myWin.flashEdgeLogfilePath, dirPath+"FLASH_EDGE_TIMES.txt")
 						if err != nil {
@@ -176,6 +188,7 @@ func runApp(myWin *Config) {
 						}
 
 					}
+				endSchedule:
 				}
 				if showTickMsg && needTickMsg {
 					fmt.Println(tickMsg)
@@ -201,6 +214,19 @@ func runApp(myWin *Config) {
 			scanForComPorts()
 		}
 	}
+}
+
+func clearSchedule(myWin *Config) {
+	// Reset all scheduling flags
+	myWin.utcStartArmed = false
+	myWin.pastLeader = false
+	myWin.pastFlashOne = false
+	myWin.pastFlashTwo = false
+	myWin.pastEnd = false
+
+	// Reset the ARm UTC button color and label
+	myWin.armUTCbutton.Importance = widget.MediumImportance
+	myWin.armUTCbutton.SetText("Arm UTC start")
 }
 
 func startFitsReader(dirPath string, err error) {

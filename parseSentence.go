@@ -85,6 +85,11 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 					gpsInfo.hour, gpsInfo.minute, gpsInfo.second, 0, time.UTC).Unix()
 				if gpsInfo.unixTime == 0 {
 					gpsInfo.nextUnixTime = unixTime + 1
+					if myWin.App.Preferences().BoolWithFallback("ArmUTCstartTime", false) {
+						fmt.Println("We need to click the Arm UTC button")
+						gpsInfo.unixTime = gpsInfo.nextUnixTime
+						armUTCstart()
+					}
 				}
 				gpsInfo.unixTime = unixTime + 1
 			}
