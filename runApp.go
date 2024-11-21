@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"fyne.io/fyne/v2/widget"
 	"image/color"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -11,6 +12,33 @@ import (
 	"strings"
 	"time"
 )
+
+func MoveFile(sourcePath, destPath string) error {
+	inputFile, err := os.Open(sourcePath)
+	if err != nil {
+		return fmt.Errorf("couldn't open source file: %v", err)
+	}
+	defer inputFile.Close()
+
+	outputFile, err := os.Create(destPath)
+	if err != nil {
+		return fmt.Errorf("couldn't open dest file: %v", err)
+	}
+	defer outputFile.Close()
+
+	_, err = io.Copy(outputFile, inputFile)
+	if err != nil {
+		return fmt.Errorf("couldn't copy to dest from source: %v", err)
+	}
+
+	inputFile.Close() // for Windows, close before trying to remove: https://stackoverflow.com/a/64943554/246801
+
+	err = os.Remove(sourcePath)
+	if err != nil {
+		return fmt.Errorf("couldn't remove source file: %v", err)
+	}
+	return nil
+}
 
 func runApp(myWin *Config) {
 
@@ -110,6 +138,7 @@ func runApp(myWin *Config) {
 						needTickMsg = true
 						myWin.pastLeader = true
 						if connectToSharpCap() {
+							//fmt.Println(getResponse(myWin.SharpCapConn, "set_exp_seconds 0.5")) // TODO Remove this test
 							getResponse(myWin.SharpCapConn, "start")
 						} else {
 							clearSchedule(myWin)
@@ -147,7 +176,6 @@ func runApp(myWin *Config) {
 							goto endSchedule
 						}
 						dirPath, _ := filepath.Split(sharpCapPath)
-
 						if !myWin.shutdownCheckBox.Checked {
 							showMsg("Path to SharpCap capture folder:", dirPath, 200, 800)
 						}
@@ -158,13 +186,17 @@ func runApp(myWin *Config) {
 
 						clearSchedule(myWin)
 
-						err := os.Rename(myWin.flashEdgeLogfilePath, dirPath+"FLASH_EDGE_TIMES.txt")
+						//err := os.Rename(myWin.flashEdgeLogfilePath, dirPath+"FLASH_EDGE_TIMES.txt")
+						err := MoveFile(myWin.flashEdgeLogfilePath, dirPath+"FLASH_EDGE_TIMES.txt")
 						if err != nil {
 							fmt.Println(err)
 						}
 
+						_, _ = myWin.logFile.WriteString("Last line of the IotaGFTapp log file" + "\n")
+
 						myWin.logFile.Close()
-						err = os.Rename(myWin.logFilePath, dirPath+"IotaGFT_LOG.txt")
+						//err = os.Rename(myWin.logFilePath, dirPath+"IotaGFT_LOG.txt")
+						err = MoveFile(myWin.logFilePath, dirPath+"IotaGFT_LOG.txt")
 						if err != nil {
 							fmt.Println(err)
 						}

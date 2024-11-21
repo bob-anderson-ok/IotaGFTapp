@@ -15,6 +15,7 @@ def listeningThread(startedBy):
 	# print(startedBy)
 	HOST = '127.0.0.1'
 	PORT = 33000
+	print("IotaGFT SharpCap script version 1.1")
 	print("SharpCap is listening on 127.0.0.1:33000" + " (started by: " + startedBy + ")")
 	
 	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -65,6 +66,7 @@ def listeningThread(startedBy):
 				elif message == "lastfilepath":
 					lastCaptureFilePath = SharpCap.GetLastCaptureFilename()
 					if len(lastCaptureFilePath) > 0:
+						print("sent: %s" % SharpCap.GetLastCaptureFilename())
 						conn.sendall(makeMsg(SharpCap.GetLastCaptureFilename()))
 					else:
 						conn.sendall(makeMsg("lastfilepath FAILED"))
@@ -77,6 +79,19 @@ def listeningThread(startedBy):
 						print("Sent:", exposure)
 						conn.sendall(makeMsg(f'{exposure}'))
 					
+				elif message.StartsWith("set_exp_seconds"):
+					if not SharpCap.IsCameraSelected:
+						conn.sendall(makeMsg("No camera selected"))
+					else:
+						parts = message.Split()
+						if len(parts) < 2:
+							print("set_exp_seconds error: no exposure time given")
+							conn.sendall(makeMsg("set_exp_seconds error: no exposure time given"))
+						else:
+							print("Setting exposure to %s seconds" % parts[1])
+							newExposure = float(parts[1])
+							SharpCap.SelectedCamera.Controls.Exposure.Value = newExposure
+							conn.sendall(makeMsg("exposure set to %s seconds" % parts[1]))
 				else:
 					conn.sendall(makeMsg("invalid command!"))
 

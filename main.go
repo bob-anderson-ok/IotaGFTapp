@@ -25,7 +25,7 @@ import (
 
 const (
 	MaxSerialDataLines = 100_000
-	Version            = "1.2.6"
+	Version            = "1.2.7"
 )
 
 type TickStamp struct {
@@ -192,6 +192,7 @@ func sendResponse(conn net.Conn, cmd string) error {
 	}
 	return err
 }
+
 func getResponse(conn net.Conn, cmd string) string {
 	_, err := conn.Write(makeMsg(cmd))
 	if err != nil {
@@ -480,7 +481,10 @@ func main() {
 		addToTextOutDisplay(newLine)
 	}
 
-	newLine = fmt.Sprintf("Log file @ %s", logfilePath)
+	//newLine = fmt.Sprintf("Log file @ %s", logfilePath)
+	//addToTextOutDisplay(newLine)
+
+	newLine = fmt.Sprintf("The log file will be copied to the SharpCap capture folder at end of capture.")
 	addToTextOutDisplay(newLine)
 
 	// Find available com ports, fill in the drop-down list of available serial
@@ -544,10 +548,8 @@ func connectToSharpCap() bool {
 
 func createLogAndFlashEdgeFiles(workDir string) bool {
 	// Form the full path to the standard logfile
-	//logfilePath = fmt.Sprintf("%s/LOG_GFT_%s.txt", workDir, timestamp)
-	logfilePath = fmt.Sprintf("%s/LOG_GFT.txt", workDir)
-	//flashEdgeLogfilePath = fmt.Sprintf("%s/FLASH_EDGE_TIMES_%s.txt", workDir, timestamp)
-	flashEdgeLogfilePath = fmt.Sprintf("%s/FLASH_EDGE_TIMES.txt", workDir)
+	logfilePath = fmt.Sprintf("%s\\LOG_GFT.txt", workDir)
+	flashEdgeLogfilePath = fmt.Sprintf("%s\\FLASH_EDGE_TIMES.txt", workDir)
 	myWin.logFilePath = logfilePath
 	myWin.flashEdgeLogfilePath = flashEdgeLogfilePath
 
@@ -558,6 +560,8 @@ func createLogAndFlashEdgeFiles(workDir string) bool {
 		return false
 	}
 	myWin.logFile = logFile
+
+	_, _ = myWin.logFile.WriteString("First line of the IotaGFTapp log file" + "\n")
 
 	// create and open the flash edge logfile
 	flashLogFile, err1 := os.Create(flashEdgeLogfilePath)
@@ -639,6 +643,9 @@ func interpolateTimestamp(flashTime, t1, t2 int64, s1, s2 string) string {
 
 	// Calculate f(flashTime)  output is time (in seconds) relative to seconds1
 	deltaTsecs := a * float64(flashTime-t1)
+
+	deltaTsecs += 1.0 // This corrects for recording the GPS time of the  + or - pulse using the current GPS time,
+	// which is 1 second behind because the GPRMC string gets emitted AFTER the + or - event
 
 	interpolatedTimestamp := calcAdderToTimestamp(s1, deltaTsecs)
 	return interpolatedTimestamp
