@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"image/color"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +22,10 @@ func calcChecksum(str string) (string, uint8) {
 	return fmt.Sprintf("*%02X", checksum), checksum
 }
 
+func getSavedGpsUtcOffset() string {
+	return myWin.App.Preferences().StringWithFallback("gpsUtcOffset", defaultGpsUtcOffset)
+}
+
 func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error) {
 	ans := []string{""}
 	var deltaP int64
@@ -27,7 +33,7 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 	chkSum, _ := calcChecksum(sentence)
 
 	if chkSum != checksum {
-		fmt.Printf("%s  %s\n", checksum, chkSum)
+		log.Printf("Checksum error %s != %s\n", checksum, chkSum)
 		return ans, errors.New("parseSentence() found bad checksum in " + sentence)
 	}
 
@@ -86,7 +92,7 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 				if gpsInfo.unixTime == 0 {
 					gpsInfo.nextUnixTime = unixTime + 1
 					if myWin.App.Preferences().BoolWithFallback("ArmUTCstartTime", false) {
-						fmt.Println("We need to click the Arm UTC button")
+						//fmt.Println("We need to click the Arm UTC button")
 						gpsInfo.unixTime = gpsInfo.nextUnixTime
 						armUTCstart()
 					}
@@ -97,13 +103,32 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 		case "$GPDTM":
 			return []string{"$GPDTM", sentence}, nil
 		case "$PUBX":
-			gpsInfo.gpsUtcOffset = parts[6]
+			if strings.Contains(parts[6], "D") {
+				gpsInfo.gpsUtcOffset = getSavedGpsUtcOffset()
+				offsetMsg := fmt.Sprintf("GPS-UTC offset in use: %s", gpsInfo.gpsUtcOffset)
+				myWin.gpsUtcOffsetInUse.Text = offsetMsg
+				myWin.gpsUtcOffsetInUse.Color = color.NRGBA{R: 180, A: 255}
+				myWin.gpsUtcOffsetInUse.Refresh()
+			} else {
+				if isGpsUtcOffsetNew(parts[6]) {
+					msg := fmt.Sprintf("\n\n\n\n\n\n\n\n\n\n\t\t!!!!! There is a NEW GpsUtcOffset of: %s  !!!!", parts[6])
+					showMsg("Gps Utc Offset event report", msg, 500, 600)
+					log.Printf(fmt.Sprintf("!!!!! There is a NEW GpsUtcOffset of: %s  !!!!", parts[6]))
+				}
+				myWin.App.Preferences().SetString("gpsUtcOffset", parts[6])
+				gpsInfo.gpsUtcOffset = parts[6]
+				offsetMsg := fmt.Sprintf("GPS-UTC offset in use: %s", gpsInfo.gpsUtcOffset)
+				myWin.gpsUtcOffsetInUse.Text = offsetMsg
+				myWin.gpsUtcOffsetInUse.Color = color.NRGBA{G: 180, A: 255}
+				myWin.gpsUtcOffsetInUse.Refresh()
+			}
 			if gpsInfo.date != "" {
 				calcGPSfromUTC(gpsInfo)
 			}
 			return []string{"$PUBX", sentence}, nil
 		default:
 			errMsg := fmt.Sprintf("parseSentence(): no decoder enabled for %s", payload)
+			log.Println(errMsg)
 			return ans, errors.New(errMsg)
 		}
 	}
@@ -217,6 +242,10 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 	// That includes {ERROR ...}  [CMD ...] and [ ... ] (which are command responses
 
 	return []string{"other", sentence}, nil
+}
+
+func isGpsUtcOffsetNew(reportedGpsUtcOffset string) bool {
+	return reportedGpsUtcOffset != getSavedGpsUtcOffset()
 }
 
 func convertTimestampToTimeObject(ts string) (time.Time, error) {

@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"go.bug.st/serial"
 	"gonum.org/v1/plot/font"
+	"log"
 	"math"
 	"net"
 	"os"
@@ -23,10 +24,11 @@ import (
 	"gonum.org/v1/plot/vg"
 )
 
-const (
-	MaxSerialDataLines = 100_000
-	Version            = "1.2.7"
-)
+const MaxSerialDataLines = 100_000
+
+const Version = "1.2.8"
+
+const defaultGpsUtcOffset = "18"
 
 type TickStamp struct {
 	utcTime         string // UTC time when P sentence occurred
@@ -84,6 +86,7 @@ type Config struct {
 	altitudeStatus            *canvas.Text
 	dateTimeStatus            *canvas.Text
 	comPortInUse              *widget.Label
+	gpsUtcOffsetInUse         *canvas.Text
 	portsAvailable            []string
 	autoScroll                *widget.Check
 	textOut                   []string
@@ -154,7 +157,8 @@ var flashEdges []FlashEdge
 
 var myWin Config
 
-var logfilePath string
+var logfilePath string // This file logs all of the GPS sentences that are received
+
 var flashEdgeLogfilePath string
 
 // The following default baudrate can be changed by a command line argument
@@ -188,7 +192,7 @@ func msgTrim(msg string) string {
 func sendResponse(conn net.Conn, cmd string) error {
 	_, err := conn.Write(makeMsg(cmd))
 	if err != nil {
-		fmt.Println("Error writing:", err.Error())
+		log.Println("Error writing:", err.Error())
 	}
 	return err
 }
@@ -196,12 +200,12 @@ func sendResponse(conn net.Conn, cmd string) error {
 func getResponse(conn net.Conn, cmd string) string {
 	_, err := conn.Write(makeMsg(cmd))
 	if err != nil {
-		fmt.Println("Error writing:", err.Error())
+		log.Println("Error writing:", err.Error())
 	}
 	buffer := make([]byte, MSGLEN)
 	_, err = conn.Read(buffer) // Get response - blocks until MSGLEN bytes have been received
 	if err != nil {
-		fmt.Println("Error reading:", err.Error())
+		log.Println("Error reading:", err.Error())
 	}
 	return msgTrim(string(buffer[:]))
 }
@@ -210,16 +214,16 @@ func server() {
 	// establish connection
 	server, err := net.Listen(ServerType, ServerHost+":"+IotaGFTPort)
 	if err != nil {
-		fmt.Println("Error listening:", err.Error())
+		log.Println("Error listening:", err.Error())
 		os.Exit(1)
 	}
 	defer server.Close()
-	fmt.Println("Listening on " + ServerHost + ":" + IotaGFTPort)
-	fmt.Println("Waiting for client...")
+	log.Println("Listening on " + ServerHost + ":" + IotaGFTPort)
+	log.Println("Waiting for client...")
 	for {
 		connection, err := server.Accept()
 		if err != nil {
-			fmt.Println("Error accepting: ", err.Error())
+			log.Println("Error accepting: ", err.Error())
 			os.Exit(1)
 		}
 		//fmt.Println("client connected")
@@ -234,7 +238,7 @@ func processClient(connection net.Conn) {
 	for {
 		mLen, err := connection.Read(buffer)
 		if err != nil {
-			fmt.Println("Error reading:", err.Error())
+			log.Println("Error reading:", err.Error())
 			os.Exit(1)
 		}
 		bytesRead += mLen
@@ -245,13 +249,13 @@ func processClient(connection net.Conn) {
 	}
 
 	cmd := strings.TrimSpace(string(buffer[:bytesRead]))
-	fmt.Println("Received: ", cmd)
+	log.Println("Received: ", cmd)
 
 	if cmd == "flash now" {
 		sendCommandToArduino(cmd)
 		err := sendResponse(connection, "OK")
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 		connection.Close()
 		return
@@ -262,25 +266,25 @@ func processClient(connection net.Conn) {
 		if !found { // If no parameter given for LED intensity
 			err := sendResponse(connection, "Invalid intensity value")
 			if err != nil {
-				fmt.Println(err)
+				log.Println(err)
 			}
 		} else {
 			intensity, err := strconv.ParseFloat(intensityStr, 64)
 			if err != nil {
 				err := sendResponse(connection, "Invalid intensity value")
 				if err != nil {
-					fmt.Println(err)
+					log.Println(err)
 				}
 			} else if intensity < 0.0 || intensity > 3*255 {
 				err := sendResponse(connection, "Invalid intensity value")
 				if err != nil {
-					fmt.Println(err)
+					log.Println(err)
 				}
 			} else {
 				processFlashIntensitySliderChange(intensity)
 				err := sendResponse(connection, "OK")
 				if err != nil {
-					fmt.Println(err)
+					log.Println(err)
 				}
 			}
 		}
@@ -293,20 +297,20 @@ func processClient(connection net.Conn) {
 		if len(parts) != 3 {
 			err := sendResponse(connection, "Invalid flash duration")
 			if err != nil {
-				fmt.Println(err)
+				log.Println(err)
 			}
 		} else {
 			duration, err := strconv.Atoi(parts[2])
 			if err != nil || duration < 1 {
 				err := sendResponse(connection, "Invalid flash duration")
 				if err != nil {
-					fmt.Println(err)
+					log.Println(err)
 				}
 			} else {
 				sendCommandToArduino(cmd)
 				err = sendResponse(connection, "OK")
 				if err != nil {
-					fmt.Println(err)
+					log.Println(err)
 				}
 			}
 		}
@@ -320,21 +324,21 @@ func processClient(connection net.Conn) {
 		if !found { // If event time is empty
 			err := sendResponse(connection, "OK")
 			if err != nil {
-				fmt.Println(err)
+				log.Println(err)
 			}
 			myWin.utcEventTime.SetText("")
 		} else {
 			myWin.utcEventTime.SetText(utc)
-			ok, _ := validUTCtime()
+			ok, _ := isValidUTCtime()
 			if ok {
 				err := sendResponse(connection, "OK")
 				if err != nil {
-					fmt.Println(err)
+					log.Println(err)
 				}
 			} else {
 				err := sendResponse(connection, "Invalid UTC time format")
 				if err != nil {
-					fmt.Println(err)
+					log.Println(err)
 				}
 			}
 		}
@@ -344,15 +348,15 @@ func processClient(connection net.Conn) {
 
 	if strings.Contains(cmd, "recordingTime") {
 		myWin.recordingLength.SetText(cmd[14:])
-		if validRecordingTime() {
+		if isValidRecordingTime() {
 			err := sendResponse(connection, "OK")
 			if err != nil {
-				fmt.Println(err)
+				log.Println(err)
 			}
 		} else {
 			err := sendResponse(connection, "Invalid recording time")
 			if err != nil {
-				fmt.Println(err)
+				log.Println(err)
 			}
 		}
 		return
@@ -363,7 +367,7 @@ func processClient(connection net.Conn) {
 		myWin.shutdownCheckBox.SetChecked(true)
 		err := sendResponse(connection, "OK")
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 		connection.Close()
 		return
@@ -374,7 +378,7 @@ func processClient(connection net.Conn) {
 		myWin.shutdownCheckBox.SetChecked(false)
 		err := sendResponse(connection, "OK")
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 		connection.Close()
 		return
@@ -384,7 +388,7 @@ func processClient(connection net.Conn) {
 		autoRunFitsReader(true)
 		err := sendResponse(connection, "OK")
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 		connection.Close()
 		return
@@ -394,7 +398,7 @@ func processClient(connection net.Conn) {
 		autoRunFitsReader(false)
 		err := sendResponse(connection, "OK")
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 		connection.Close()
 		return
@@ -404,7 +408,7 @@ func processClient(connection net.Conn) {
 		showIntensitySlider(true)
 		err := sendResponse(connection, "OK")
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 		connection.Close()
 		return
@@ -414,7 +418,7 @@ func processClient(connection net.Conn) {
 		showIntensitySlider(false)
 		err := sendResponse(connection, "OK")
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 		connection.Close()
 		return
@@ -424,7 +428,7 @@ func processClient(connection net.Conn) {
 		ans := armUTCstart()
 		err := sendResponse(connection, ans)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 		connection.Close()
 		return
@@ -432,24 +436,36 @@ func processClient(connection net.Conn) {
 
 	err := sendResponse(connection, "Unimplemented command")
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 	connection.Close()
 	return
 }
 
+const operationLog = "IotaGFToperationLog.txt"
+
 func main() {
+
+	logFile, err := os.OpenFile(operationLog, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.SetOutput(logFile)
+	//log.SetOutput(os.Stdout)  // Uncomment this to send all logs to console instead of a file
+	log.SetFlags(log.LstdFlags) // Add date and time as prefix
+	log.Println("IotaGFTapp started...")
 
 	// A non-standard baudrate (which is normally 250000) can be specified on the command line
 	//fmt.Println(len(os.Args), os.Args)
 	if len(os.Args) > 1 {
 		cmdLineBaudrate, err := strconv.Atoi(os.Args[1])
 		if (err != nil) || (baudrate < 0) {
-			fmt.Println("Baudrate given on command line was not a positive integer")
+			log.Println("Baudrate given on command line was not a positive integer")
 			os.Exit(911)
 		} else {
 			if baudrate != 250000 {
-				fmt.Printf("Cmdline changed baudrate from standard 250000 to: %d", cmdLineBaudrate)
+				log.Printf("Cmdline changed baudrate from standard 250000 to: %d", cmdLineBaudrate)
 				baudrate = cmdLineBaudrate
 			}
 		}
@@ -475,10 +491,12 @@ func main() {
 
 	newLine := fmt.Sprintf("... the serial port will be opened at 8,N,1 and %d baudrate.", baudrate)
 	addToTextOutDisplay(newLine)
+	log.Println(newLine)
 
 	if baudrate != 250000 {
 		newLine = fmt.Sprintf("... a non-standard baudrate of %d has been specified in the command line.", baudrate)
 		addToTextOutDisplay(newLine)
+		log.Println(newLine)
 	}
 
 	//newLine = fmt.Sprintf("Log file @ %s", logfilePath)
@@ -496,8 +514,6 @@ func main() {
 	go runApp(&myWin)
 
 	go server()
-
-	//connectToSharpCap()
 
 	// show and run the GUI
 	myWin.MainWindow.ShowAndRun()
@@ -548,7 +564,7 @@ func connectToSharpCap() bool {
 
 func createLogAndFlashEdgeFiles(workDir string) bool {
 	// Form the full path to the standard logfile
-	logfilePath = fmt.Sprintf("%s\\LOG_GFT.txt", workDir)
+	logfilePath = fmt.Sprintf("%s\\GPS_LOG_GFT.txt", workDir)
 	flashEdgeLogfilePath = fmt.Sprintf("%s\\FLASH_EDGE_TIMES.txt", workDir)
 	myWin.logFilePath = logfilePath
 	myWin.flashEdgeLogfilePath = flashEdgeLogfilePath
@@ -556,17 +572,17 @@ func createLogAndFlashEdgeFiles(workDir string) bool {
 	// create and open the logFile
 	logFile, err1 := os.Create(logfilePath)
 	if err1 != nil {
-		fmt.Println("in createLogAndFlashEdgeFiles:", err1)
+		log.Println("in createLogAndFlashEdgeFiles:", err1)
 		return false
 	}
 	myWin.logFile = logFile
 
-	_, _ = myWin.logFile.WriteString("First line of the IotaGFTapp log file" + "\n")
+	_, _ = myWin.logFile.WriteString("First line of the IotaGFTapp GPS sentence log file" + "\n")
 
 	// create and open the flash edge logfile
 	flashLogFile, err1 := os.Create(flashEdgeLogfilePath)
 	if err1 != nil {
-		fmt.Println("in createLogAndFlashEdgeFiles:", err1)
+		log.Println("in createLogAndFlashEdgeFiles:", err1)
 		return false
 	}
 	myWin.flashEdgeLogfile = flashLogFile
@@ -597,8 +613,6 @@ func initializeStartingWindow(myWin *Config) {
 }
 
 func calcFlashEdgeTimes() {
-	//nEdges := len(flashEdges)
-	//fmt.Printf("%d flash edges available.\n", nEdges)
 	for i := range flashEdges {
 		for j := 0; j < len(onePPSdata.tickStamp); j++ {
 			// Find the onePPS time stamp that precedes the flash edge - we go past it, then back up 1 step
@@ -614,14 +628,15 @@ func calcFlashEdgeTimes() {
 
 				edgeStr := ""
 				if flashEdges[i].on {
-					edgeStr = fmt.Sprintf("%d on  %s\n", i+1, newTimestamp+"Z") // Count flash edges starting from 1
+					// Count flash edges starting from 1
+					edgeStr = fmt.Sprintf("%d on  %s%s\n", i+1, newTimestamp+"Z|", gpsData.gpsUtcOffset)
 				} else {
-					edgeStr = fmt.Sprintf("%d off %s\n", i+1, newTimestamp+"Z")
+					edgeStr = fmt.Sprintf("%d off %s%s\n", i+1, newTimestamp+"Z|", gpsData.gpsUtcOffset)
 				}
 				_, fileErr := myWin.flashEdgeLogfile.WriteString(edgeStr)
 				//fmt.Println(edgeStr)
 				if fileErr != nil {
-					fmt.Println(fmt.Errorf("calcFlashEdgeTimes(): %w", fileErr))
+					log.Println(fmt.Errorf("calcFlashEdgeTimes(): %w", fileErr))
 				}
 				break
 			}
@@ -664,7 +679,7 @@ func show1ppsHistory() {
 	pngWin.Show()
 }
 
-func validRecordingTime() bool {
+func isValidRecordingTime() bool {
 	var textGiven = myWin.recordingLength.Text
 	value, err := strconv.ParseFloat(textGiven, 64)
 	if err != nil {
@@ -674,25 +689,25 @@ func validRecordingTime() bool {
 		return false
 	}
 	myWin.recordingDuration = value
-	//fmt.Println("recording length (sec):", textGiven)
+	log.Println("recording length (sec): ", textGiven)
 	return true
 }
 
-func validUTCtime() (bool, int64) {
+func isValidUTCtime() (bool, int64) {
 	var textGiven = myWin.utcEventTime.Text
 	utcTime, err := time.Parse(time.DateTime, textGiven)
-	unixTime := utcTime.Unix()
 	if err != nil {
 		return false, 0
 	}
-	fmt.Println("utc date/time entered:", utcTime)
+	unixTime := utcTime.Unix()
+	log.Println("utc date/time entered:", utcTime)
 	myWin.eventDateTime = utcTime
 	return true, unixTime
 }
 
 func calculateStartTime(delta int64) string {
 	exposureStr := getResponse(myWin.SharpCapConn, "exposure")
-	fmt.Println("Rcvd:", exposureStr, "ms exposure time")
+	log.Println("Rcvd:", exposureStr, "ms exposure time")
 	if exposureStr == "No camera selected" {
 		showMsg("SharpCap error", "\nNo camera selected!\n", 200, 200)
 		return "No camera selected"
@@ -704,7 +719,7 @@ func calculateStartTime(delta int64) string {
 	}
 	//fmt.Println(exposureMs)
 	readingsPerSecond := 1000 / exposureMs
-	fmt.Println(readingsPerSecond, "readings per second")
+	log.Println(readingsPerSecond, "readings per second")
 	neededFlashTime := int(math.Ceil(10 / readingsPerSecond))
 	flashTime := int64(neededFlashTime) // seconds
 	cmd := fmt.Sprintf("flash duration %d", neededFlashTime)
@@ -723,8 +738,8 @@ func calculateStartTime(delta int64) string {
 
 	startTime := unixTimeNow + delta - offset
 	d := unixTimeNow - startTime
-	fmt.Println("unixTime now:", unixTimeNow)
-	fmt.Println("unixTime at start of acquisition:", startTime, "(seconds in the future:", -d, ")")
+	log.Println("unixTime now:", unixTimeNow)
+	log.Println("unixTime at start of acquisition:", startTime, "(seconds in the future:", -d, ")")
 	if d < 0 {
 		myWin.leaderStartTime = startTime
 		myWin.firstFlashTime = myWin.leaderStartTime + flashTime
@@ -732,6 +747,7 @@ func calculateStartTime(delta int64) string {
 		myWin.endOfRecording = myWin.secondFlashTime + 3*flashTime
 		return "ok"
 	} else {
+		log.Printf("Start time is in the past by %d seconds.", d)
 		return fmt.Sprintf("Start time is in the past by %d seconds.", d)
 	}
 }
@@ -746,7 +762,7 @@ func armUTCstart() string {
 			}
 		}
 
-		if !validRecordingTime() {
+		if !isValidRecordingTime() {
 			showMsg("Invalid recording time", recordingLengthError, 250, 400)
 			myWin.App.Preferences().SetBool("ArmUTCstartTime", false)
 			return "Invalid recording time"
@@ -756,7 +772,7 @@ func armUTCstart() string {
 
 		utcText := myWin.utcEventTime.Text
 		if utcText != "" {
-			fmt.Println("\nUTC event time supplied:", utcText)
+			log.Println("\nUTC event time supplied:", utcText)
 		} else {
 			fmt.Println("")
 		}
@@ -778,10 +794,10 @@ func armUTCstart() string {
 		}
 
 		if utcText == "" {
-			fmt.Println("Start test recording 10 seconds from now")
+			log.Println("Start test recording 10 seconds from now")
 			result = calculateStartTime(0)
 		} else {
-			ok, unixTime := validUTCtime()
+			ok, unixTime := isValidUTCtime()
 			if !ok {
 				showMsg("Invalid UTC date/time", utcTimeError, 250, 400)
 				return "Invalid UTC date/time"
@@ -809,7 +825,7 @@ func armUTCstart() string {
 		myWin.armUTCbutton.SetText("Arm UTC start")
 
 		myWin.App.Preferences().SetBool("ArmUTCstartTime", false)
-		fmt.Println("UTC start cancelled.")
+		log.Println("UTC start cancelled.")
 	}
 	return "OK"
 }

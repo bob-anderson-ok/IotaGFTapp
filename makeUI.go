@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"image/color"
+	"log"
 	"strconv"
 )
 
@@ -68,6 +69,11 @@ func (app *Config) makeUI() {
 	leftItem.Add(layout.NewSpacer())
 
 	leftItem.Add(canvas.NewText("=========================", color.NRGBA{R: 180, A: 255}))
+
+	//app.gpsUtcOffsetInUse = widget.NewLabel("GPS-UTC offset in use: TBD")
+	//app.gpsUtcOffsetInUse = widget.NewLabel("")
+	app.gpsUtcOffsetInUse = canvas.NewText("", nil)
+	leftItem.Add(app.gpsUtcOffsetInUse)
 
 	leftItem.Add(canvas.NewText("UTC event date/time", nil))
 	app.utcEventTime = widget.NewEntry()
@@ -221,12 +227,12 @@ func shutdownEnable(checked bool) {
 
 func processUTCeventTimeEntry(stuff string) {
 	myWin.App.Preferences().SetString("UTCstartTime", stuff)
-	fmt.Println(stuff)
+	log.Println(stuff)
 }
 
 func processRecordingLengthEntry(stuff string) {
 	myWin.App.Preferences().SetString("RecordingTime", stuff)
-	fmt.Println(stuff)
+	log.Println("Recording time set to: ", stuff)
 }
 
 //func changeLogAndEdgeFiles(path string) {
@@ -266,16 +272,18 @@ func closeCurrentPort() {
 	if myWin.serialPort != nil {
 		err := myWin.serialPort.Close()
 		if err != nil {
-			fmt.Println(fmt.Errorf("closeCurrentPort(): %w", err))
+			log.Println(fmt.Errorf("closeCurrentPort(): %w", err))
 		}
 		myWin.serialPort = nil
 		gpsData = GPSdata{}
 		updateStatusLine(gpsData)
-		addToTextOutDisplay(fmt.Sprintf("%s has been closed", myWin.comPortName))
+		addToTextOutDisplay(fmt.Sprintf("%s has been closed by user", myWin.comPortName))
+		log.Printf("%s has been closed by user", myWin.comPortName)
 		myWin.comPortInUse.Text = "Serial port open: none"
 		myWin.comPortInUse.Refresh()
 	} else {
 		addToTextOutDisplay("There is no open serial port")
+		log.Println("There is no open serial port")
 	}
 	myWin.spMutex.Unlock()
 }
@@ -304,7 +312,7 @@ func sendCommandToArduino(extCmd string) {
 		_, err := myWin.serialPort.Write([]byte(cmdGiven))
 		if err != nil {
 			errMsg := fmt.Errorf("%w", err)
-			fmt.Println(errMsg.Error())
+			log.Println(errMsg.Error())
 		}
 	}
 	myWin.spMutex.Unlock()
@@ -327,6 +335,7 @@ func handleComPortSelection(value string) {
 		err := myWin.serialPort.Close()
 		if err != nil {
 			msg := fmt.Sprintf("Attempt to close %s failed.", myWin.comPortName)
+			log.Println(msg)
 			addToTextOutDisplay(msg)
 			return
 		}
@@ -340,8 +349,10 @@ func handleComPortSelection(value string) {
 
 		myWin.comPortName = ""
 		addToTextOutDisplay(msg)
+		log.Println(msg)
 		msg = fmt.Sprintf("Make a new serial port selection.")
 		addToTextOutDisplay(msg)
+		log.Println(msg)
 		myWin.comPortInUse.SetText("Serial port open: " + "none")
 		return
 	}
@@ -354,10 +365,12 @@ func handleComPortSelection(value string) {
 		if err != nil {
 			msg := fmt.Sprintf("Attempt to open %s failed.", myWin.comPortName)
 			addToTextOutDisplay(msg)
+			log.Println(msg)
 			return
 		} else {
 			msg := fmt.Sprintf("%s was opened successfully.", myWin.comPortName)
 			addToTextOutDisplay(msg)
+			log.Println(msg)
 		}
 		myWin.comPortInUse.SetText("Serial port open: " + value)
 	}
@@ -381,7 +394,6 @@ func getInitialText() []string {
 }
 
 func makeStatusLine(app *Config) *fyne.Container {
-	//app.statusStatus = canvas.NewText("Status: not available", color.NRGBA{R: 180, A: 255})
 	app.statusStatus = canvas.NewText("Status: not available", nil)
 	app.statusStatus.Alignment = fyne.TextAlignLeading
 
@@ -393,7 +405,7 @@ func makeStatusLine(app *Config) *fyne.Container {
 
 	app.dateTimeStatus = canvas.NewText("UTC date/time: not available", nil)
 
-	// 5 items with only 4 columns so that dataTime appears on second line
+	// 5 items with only 4 columns so that dateTime appears on second line
 	ans := container.NewGridWithColumns(4,
 		app.statusStatus, app.latitudeStatus, app.longitudeStatus, app.altitudeStatus, app.dateTimeStatus)
 	return ans

@@ -42,10 +42,7 @@ func MoveFile(sourcePath, destPath string) error {
 
 func runApp(myWin *Config) {
 
-	//if myWin.App.Preferences().BoolWithFallback("ArmUTCstartTime", false) {
-	//	fmt.Println("We need to click the Arm UTC button")
-	//	armUTCstart()
-	//}
+	//myWin.App.Preferences().SetString("gpsUtcOffset", "17") // TODO Remove this test
 
 	sentenceChan := make(chan string, 1)
 
@@ -75,7 +72,9 @@ func runApp(myWin *Config) {
 			sentence := <-sentenceChan // Block until a sentence is returned by go getNextSentence(sentenceChan)
 
 			if sentence == "timeout" {
-				addToTextOutDisplay(fmt.Sprintf("Serial port %s is not responding.", myWin.comPortName))
+				msg := fmt.Sprintf("Serial port %s is not responding.", myWin.comPortName)
+				addToTextOutDisplay(msg)
+				log.Println(msg)
 				continue
 			}
 
@@ -83,7 +82,7 @@ func runApp(myWin *Config) {
 			if myWin.logFile != nil {
 				_, fileErr := myWin.logFile.WriteString(sentence + "\n")
 				if fileErr != nil {
-					fmt.Println(fmt.Errorf("runApp(): %w", fileErr))
+					log.Println(fmt.Errorf("runApp(): %w", fileErr))
 				}
 			}
 
@@ -113,16 +112,13 @@ func runApp(myWin *Config) {
 			// This call checks the checksum
 			ans, checksumString, err = sendSentenceToBeParsed(sentence, ans, err)
 			needTickMsg := false
-			//updateStatusLine(gpsData)
 			if ans[0] == "P" {
-				//tickCounter += 1
-				//fmt.Println("tickCounter:", tickCounter)
 				tickMsg = fmt.Sprintf("unixTime %d ", gpsData.unixTime)
 				lostPulseCount := gpsData.unixTime - gpsData.nextUnixTime
 				if lostPulseCount != 0 {
 					showMsg("PPS error !",
 						fmt.Sprintf("\n%d 1pps pulses were lost !!!\n", lostPulseCount), 200, 800)
-					fmt.Printf("\n%d 1pps pulses were lost\n", lostPulseCount)
+					log.Printf("%d 1pps pulses were lost\n", lostPulseCount)
 					gpsData.nextUnixTime = gpsData.unixTime // catch up so that we can continue testing
 				}
 				gpsData.nextUnixTime += 1
@@ -135,10 +131,12 @@ func runApp(myWin *Config) {
 					// with a scheduled event
 					if tNow >= myWin.leaderStartTime && !myWin.pastLeader {
 						tickMsg += fmt.Sprint("Starting leader ")
+						log.Println(fmt.Sprint("Starting leader "))
 						needTickMsg = true
 						myWin.pastLeader = true
 						if connectToSharpCap() {
-							//fmt.Println(getResponse(myWin.SharpCapConn, "set_exp_seconds 0.5")) // TODO Remove this test
+							//Example of asking SharpCap to set exposure time
+							//fmt.Println(getResponse(myWin.SharpCapConn, "set_exp_seconds 0.5"))
 							getResponse(myWin.SharpCapConn, "start")
 						} else {
 							clearSchedule(myWin)
@@ -148,6 +146,7 @@ func runApp(myWin *Config) {
 
 					if tNow >= myWin.firstFlashTime && !myWin.pastFlashOne {
 						tickMsg += fmt.Sprint("Flash one requested")
+						log.Println(fmt.Sprint("Flash one requested"))
 						needTickMsg = true
 						myWin.pastFlashOne = true
 						sendCommandToArduino("flash now")
@@ -155,6 +154,7 @@ func runApp(myWin *Config) {
 
 					if tNow >= myWin.secondFlashTime && !myWin.pastFlashTwo {
 						tickMsg += fmt.Sprint("Flash two requested")
+						log.Println(fmt.Sprint("Flash two requested"))
 						myWin.pastFlashTwo = true
 						needTickMsg = true
 						sendCommandToArduino("flash now")
@@ -164,6 +164,7 @@ func runApp(myWin *Config) {
 						myWin.App.Preferences().SetBool("ArmUTCstartTime", false)
 
 						tickMsg += fmt.Sprint("Recording ended\n")
+						log.Println(fmt.Sprint("Recording ended"))
 						myWin.pastEnd = true
 						needTickMsg = true
 
@@ -178,6 +179,7 @@ func runApp(myWin *Config) {
 						dirPath, _ := filepath.Split(sharpCapPath)
 						if !myWin.shutdownCheckBox.Checked {
 							showMsg("Path to SharpCap capture folder:", dirPath, 200, 800)
+							log.Println(fmt.Sprint("Path to SharpCap capture folder:  ", dirPath))
 						}
 
 						calcFlashEdgeTimes() // These get written to the flashEdgeLogfile
@@ -186,20 +188,24 @@ func runApp(myWin *Config) {
 
 						clearSchedule(myWin)
 
-						//err := os.Rename(myWin.flashEdgeLogfilePath, dirPath+"FLASH_EDGE_TIMES.txt")
 						err := MoveFile(myWin.flashEdgeLogfilePath, dirPath+"FLASH_EDGE_TIMES.txt")
 						if err != nil {
-							fmt.Println(err)
+							log.Println(err)
 						}
 
-						_, _ = myWin.logFile.WriteString("Last line of the IotaGFTapp log file" + "\n")
+						_, _ = myWin.logFile.WriteString("Last line of the IotaGFTapp GPS sentence log file" + "\n")
 
 						myWin.logFile.Close()
-						//err = os.Rename(myWin.logFilePath, dirPath+"IotaGFT_LOG.txt")
 						err = MoveFile(myWin.logFilePath, dirPath+"IotaGFT_LOG.txt")
 						if err != nil {
-							fmt.Println(err)
+							log.Println(err)
 						}
+
+						// We ignore the error here as it is standard to get a "file used elsewhere" error
+						_ = MoveFile(operationLog, dirPath+operationLog)
+						//if err != nil {
+						//	log.Println(err)
+						//}
 
 						// Create a new set of Log and FlashEdge files in our working directory
 						createLogAndFlashEdgeFiles(getWorkDir())
@@ -215,7 +221,7 @@ func runApp(myWin *Config) {
 
 						if myWin.shutdownCheckBox.Checked {
 							if err := exec.Command("cmd", "/C", "shutdown", "/s").Run(); err != nil {
-								fmt.Println("Failed to initiate shutdown:", err)
+								log.Println("Failed to initiate shutdown:", err)
 							}
 						}
 
@@ -277,6 +283,7 @@ func sendSentenceToBeParsed(sentence string, ans []string, err error) ([]string,
 	ans, err = parseSentence(sentence[0:n-3], checksum, &gpsData)
 	if err != nil {
 		addToTextOutDisplay(fmt.Sprintf("%v", err))
+		log.Println(fmt.Sprintf("%v", err))
 	}
 	return ans, checksum, err
 }
