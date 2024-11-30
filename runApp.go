@@ -319,18 +319,37 @@ func updateStatusLine(gpsInfo GPSdata) {
 		myWin.statusStatus.Color = nil
 		myWin.statusStatus.Refresh()
 	}
+	var timeStrNew = ""
+	var dateStrNew = ""
 	if gpsInfo.date != "" {
 		timeStr := fmt.Sprintf("UTC: %s:%s:%s",
 			gpsInfo.timeUTC[0:2],
 			gpsInfo.timeUTC[2:4],
 			gpsInfo.timeUTC[4:6],
 		)
+		if gpsInfo.utcTimestamp != "" {
+			timeStrNew = fmt.Sprintf("UTC: %s:%s:%s",
+				gpsInfo.utcTimestamp[11:13],
+				gpsInfo.utcTimestamp[14:16],
+				gpsInfo.utcTimestamp[17:19])
+			dateStrNew = fmt.Sprintf("   (%s %s %s)",
+				gpsInfo.utcTimestamp[8:10],
+				months[gpsInfo.utcTimestamp[5:7]],
+				gpsInfo.utcTimestamp[0:4],
+			)
+		}
+
 		dateStr := fmt.Sprintf("   (%s %s 20%s)",
 			gpsInfo.date[0:2],
 			months[gpsInfo.date[2:4]],
 			gpsInfo.date[4:6],
 		)
-		myWin.dateTimeStatus.Text = timeStr + dateStr
+
+		if gpsInfo.utcTimestamp == "" {
+			myWin.dateTimeStatus.Text = timeStr + dateStr
+		} else {
+			myWin.dateTimeStatus.Text = timeStrNew + dateStrNew
+		}
 		myWin.dateTimeStatus.Refresh()
 	} else {
 		myWin.dateTimeStatus.Text = "Date/time: not available"
