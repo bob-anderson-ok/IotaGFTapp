@@ -26,7 +26,7 @@ import (
 
 const MaxSerialDataLines = 100_000
 
-const Version = "1.3.1"
+const Version = "1.3.2"
 
 const gpsUtcOffset = "18"
 
@@ -613,6 +613,10 @@ func initializeStartingWindow(myWin *Config) {
 }
 
 func calcFlashEdgeTimes() {
+	_, fileErr := myWin.flashEdgeLogfile.WriteString(fmt.Sprintf("# IotaGFTapp Version %s\n", Version))
+	if fileErr != nil {
+		log.Println(fmt.Errorf("calcFlashEdgeTimes(): %w", fileErr))
+	}
 	for i := range flashEdges {
 		for j := 0; j < len(onePPSdata.tickStamp); j++ {
 			// Find the onePPS time stamp that precedes the flash edge - we go past it, then back up 1 step
