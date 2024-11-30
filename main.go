@@ -26,13 +26,15 @@ import (
 
 const MaxSerialDataLines = 100_000
 
-const Version = "1.2.8"
+const Version = "1.3.0"
 
-const defaultGpsUtcOffset = "18"
+const gpsUtcOffset = "18"
+
+const operationLog = "IotaGFToperationLog.txt"
 
 type TickStamp struct {
-	utcTime         string // UTC time when P sentence occurred
-	gpsTime         string // GPS time when P event occurred
+	utcTimestamp    string // UTC time when P sentence occurred
+	gpsTimestamp    string // GPS time when P event occurred
 	runningTickTime int64  // runningTickTime at P event
 	tickTime        int64  // tickTime reported at P event
 }
@@ -442,8 +444,6 @@ func processClient(connection net.Conn) {
 	return
 }
 
-const operationLog = "IotaGFToperationLog.txt"
-
 func main() {
 
 	logFile, err := os.OpenFile(operationLog, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
@@ -454,7 +454,7 @@ func main() {
 	log.SetOutput(logFile)
 	//log.SetOutput(os.Stdout)  // Uncomment this to send all logs to console instead of a file
 	log.SetFlags(log.LstdFlags) // Add date and time as prefix
-	log.Println("IotaGFTapp started...")
+	log.Printf("IotaGFTapp %s started...", Version)
 
 	// A non-standard baudrate (which is normally 250000) can be specified on the command line
 	//fmt.Println(len(os.Args), os.Args)
@@ -577,7 +577,7 @@ func createLogAndFlashEdgeFiles(workDir string) bool {
 	}
 	myWin.logFile = logFile
 
-	_, _ = myWin.logFile.WriteString("First line of the IotaGFTapp GPS sentence log file" + "\n")
+	_, _ = myWin.logFile.WriteString(fmt.Sprintf("First line of the IotaGFTapp %s GPS sentence log file\n", Version))
 
 	// create and open the flash edge logfile
 	flashLogFile, err1 := os.Create(flashEdgeLogfilePath)
@@ -623,8 +623,8 @@ func calcFlashEdgeTimes() {
 					flashEdges[i].edgeTime,
 					onePPSdata.tickStamp[leftPoint].runningTickTime,
 					onePPSdata.tickStamp[rightPoint].runningTickTime,
-					onePPSdata.tickStamp[leftPoint].utcTime,
-					onePPSdata.tickStamp[rightPoint].utcTime)
+					onePPSdata.tickStamp[leftPoint].utcTimestamp,
+					onePPSdata.tickStamp[rightPoint].utcTimestamp)
 
 				edgeStr := ""
 				if flashEdges[i].on {
@@ -835,7 +835,7 @@ func buildPlot() {
 	n := len(onePPSdata.tickStamp)
 	myPts := make(plotter.XYs, n)
 	for i := range myPts {
-		timeInSeconds := calcDeltaSeconds(onePPSdata.startTime, onePPSdata.tickStamp[i].utcTime)
+		timeInSeconds := calcDeltaSeconds(onePPSdata.startTime, onePPSdata.tickStamp[i].utcTimestamp)
 		myPts[i].X = float64(timeInSeconds)
 		myPts[i].Y = float64(onePPSdata.tickStamp[i].runningTickTime)
 	}

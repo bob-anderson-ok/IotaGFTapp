@@ -3,7 +3,7 @@ NOTE:
 
 Wait for GPS time to be established.  ("Status: TimeValid PPS" will appear in green at upper left of GUI)
 
-The GPS chip can take a while to acquire enough satellite to begin emitting GPS time.
+The GPS chip can take a while to acquire enough satellites to begin emitting GPS time.
 
 
 

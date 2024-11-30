@@ -42,7 +42,7 @@ func MoveFile(sourcePath, destPath string) error {
 
 func runApp(myWin *Config) {
 
-	//myWin.App.Preferences().SetString("gpsUtcOffset", "17") // TODO Remove this test
+	//myWin.App.Preferences().SetString("gpsUtcOffset", "17") // TODO Use this to test change to GpsUtcOffset
 
 	sentenceChan := make(chan string, 1)
 
@@ -115,7 +115,9 @@ func runApp(myWin *Config) {
 			if ans[0] == "P" {
 				tickMsg = fmt.Sprintf("unixTime %d ", gpsData.unixTime)
 				lostPulseCount := gpsData.unixTime - gpsData.nextUnixTime
-				if lostPulseCount != 0 {
+				// When the PUBX04 gpsUtcOffset changes from 16D to 18, it appears that -2 1pps
+				// pulses were lost. We deal with this by only reporting positive lostPulseCount values
+				if lostPulseCount > 0 {
 					showMsg("PPS error !",
 						fmt.Sprintf("\n%d 1pps pulses were lost !!!\n", lostPulseCount), 200, 800)
 					log.Printf("%d 1pps pulses were lost\n", lostPulseCount)

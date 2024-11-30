@@ -22,8 +22,8 @@ func calcChecksum(str string) (string, uint8) {
 	return fmt.Sprintf("*%02X", checksum), checksum
 }
 
-func getSavedGpsUtcOffset() string {
-	return myWin.App.Preferences().StringWithFallback("gpsUtcOffset", defaultGpsUtcOffset)
+func getGpsUtcOffset() string {
+	return myWin.App.Preferences().StringWithFallback("gpsUtcOffset", gpsUtcOffset)
 }
 
 func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error) {
@@ -69,17 +69,19 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 			gpsInfo.altitudeUnits = parts[10]
 			return []string{"$GPGGA", sentence}, nil
 		case "$GPRMC":
-			gpsInfo.timeUTC = parts[1]
-
-			gpsInfo.latitude = parts[3]
-			gpsInfo.latDirection = parts[4]
-			gpsInfo.longitude = parts[5]
-			gpsInfo.lonDirection = parts[6]
-			gpsInfo.date = parts[9]
-
-			if len(gpsInfo.timeUTC) < 2 {
+			if parts[2] != "A" { // GPRMC data is valid only if this field contains an 'A'
+				gpsInfo.date = ""
 				return []string{"$GPRMC", sentence}, nil
 			} else {
+				log.Println("")
+				log.Println(sentence)
+				gpsInfo.timeUTC = parts[1]
+				gpsInfo.latitude = parts[3]
+				gpsInfo.latDirection = parts[4]
+				gpsInfo.longitude = parts[5]
+				gpsInfo.lonDirection = parts[6]
+				gpsInfo.date = parts[9]
+
 				gpsInfo.hour, _ = strconv.Atoi(gpsInfo.timeUTC[0:2])
 				gpsInfo.minute, _ = strconv.Atoi(gpsInfo.timeUTC[2:4])
 				gpsInfo.second, _ = strconv.Atoi(gpsInfo.timeUTC[4:6])
@@ -92,7 +94,6 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 				if gpsInfo.unixTime == 0 {
 					gpsInfo.nextUnixTime = unixTime + 1
 					if myWin.App.Preferences().BoolWithFallback("ArmUTCstartTime", false) {
-						//fmt.Println("We need to click the Arm UTC button")
 						gpsInfo.unixTime = gpsInfo.nextUnixTime
 						armUTCstart()
 					}
@@ -104,26 +105,48 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 			return []string{"$GPDTM", sentence}, nil
 		case "$PUBX":
 			if strings.Contains(parts[6], "D") {
-				gpsInfo.gpsUtcOffset = getSavedGpsUtcOffset()
-				offsetMsg := fmt.Sprintf("GPS-UTC offset in use: %s", gpsInfo.gpsUtcOffset)
+				gpsInfo.gpsUtcOffset = parts[6]
+				offsetMsg := fmt.Sprintf("GpsUtcOffset: %s", getGpsUtcOffset())
 				myWin.gpsUtcOffsetInUse.Text = offsetMsg
 				myWin.gpsUtcOffsetInUse.Color = color.NRGBA{R: 180, A: 255}
 				myWin.gpsUtcOffsetInUse.Refresh()
 			} else {
-				if isGpsUtcOffsetNew(parts[6]) {
+				if isLeapSecondAdjustmentNew(parts[6]) {
 					msg := fmt.Sprintf("\n\n\n\n\n\n\n\n\n\n\t\t!!!!! There is a NEW GpsUtcOffset of: %s  !!!!", parts[6])
-					showMsg("Gps Utc Offset event report", msg, 500, 600)
+					showMsg("GpsUtcOffset change", msg, 500, 600)
 					log.Printf(fmt.Sprintf("!!!!! There is a NEW GpsUtcOffset of: %s  !!!!", parts[6]))
+					myWin.App.Preferences().SetString("gpsUtcOffset", parts[6])
 				}
-				myWin.App.Preferences().SetString("gpsUtcOffset", parts[6])
 				gpsInfo.gpsUtcOffset = parts[6]
-				offsetMsg := fmt.Sprintf("GPS-UTC offset in use: %s", gpsInfo.gpsUtcOffset)
+				offsetMsg := fmt.Sprintf("GpsUtcOffset: %s", gpsInfo.gpsUtcOffset)
 				myWin.gpsUtcOffsetInUse.Text = offsetMsg
 				myWin.gpsUtcOffsetInUse.Color = color.NRGBA{G: 180, A: 255}
 				myWin.gpsUtcOffsetInUse.Refresh()
 			}
+
+			//gpsInfo.timeUTC = parts[2]
+			//gpsInfo.hour, _ = strconv.Atoi(gpsInfo.timeUTC[0:2])
+			//gpsInfo.minute, _ = strconv.Atoi(gpsInfo.timeUTC[2:4])
+			//gpsInfo.second, _ = strconv.Atoi(gpsInfo.timeUTC[4:6])
+			//gpsInfo.date = parts[3]
+			//gpsInfo.year, _ = strconv.Atoi(gpsInfo.date[4:6])
+			//gpsInfo.year += 2000
+			//gpsInfo.month, _ = strconv.Atoi(gpsInfo.date[2:4])
+			//gpsInfo.day, _ = strconv.Atoi(gpsInfo.date[0:2])
+			//
+			//unixTime := time.Date(gpsInfo.year, time.Month(gpsInfo.month), gpsInfo.day,
+			//	gpsInfo.hour, gpsInfo.minute, gpsInfo.second, 0, time.UTC).Unix()
+			//if gpsInfo.unixTime == 0 {
+			//	gpsInfo.nextUnixTime = unixTime + 1
+			//	if myWin.App.Preferences().BoolWithFallback("ArmUTCstartTime", false) {
+			//		gpsInfo.unixTime = gpsInfo.nextUnixTime
+			//		armUTCstart()
+			//	}
+			//}
+			//gpsInfo.unixTime = unixTime + 1
+			//
 			if gpsInfo.date != "" {
-				calcGPSfromUTC(gpsInfo)
+				calcUtcTimeFromGpsTime(gpsInfo, sentence)
 			}
 			return []string{"$PUBX", sentence}, nil
 		default:
@@ -175,9 +198,11 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 			onePPSdata.runningTickTime += deltaP
 			onePPSdata.pDelta = append(onePPSdata.pDelta, deltaP)
 			if tickPulse {
+				//log.Println("tickPulseUtc: ", gpsInfo.utcTimestamp) // TODO Consider leaving this in
+				//log.Println("tickPulseGps: ", gpsInfo.gpsTimestamp) // TODO Consider leaving this in
 				newTickStamp := TickStamp{
-					utcTime:         gpsInfo.utcTimestamp,
-					gpsTime:         gpsInfo.gpsTimestamp,
+					utcTimestamp:    gpsInfo.utcTimestamp,
+					gpsTimestamp:    gpsInfo.gpsTimestamp,
 					runningTickTime: onePPSdata.runningTickTime,
 					tickTime:        0,
 				}
@@ -196,8 +221,8 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 				myWin.lastPvalue = value
 				if tickPulse {
 					newTickStamp := TickStamp{
-						utcTime:         gpsInfo.utcTimestamp,
-						gpsTime:         gpsInfo.gpsTimestamp,
+						utcTimestamp:    gpsInfo.utcTimestamp,
+						gpsTimestamp:    gpsInfo.gpsTimestamp,
 						runningTickTime: onePPSdata.runningTickTime,
 						tickTime:        0,
 					}
@@ -244,8 +269,8 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 	return []string{"other", sentence}, nil
 }
 
-func isGpsUtcOffsetNew(reportedGpsUtcOffset string) bool {
-	return reportedGpsUtcOffset != getSavedGpsUtcOffset()
+func isLeapSecondAdjustmentNew(reportedGpsUtcOffset string) bool {
+	return reportedGpsUtcOffset != getGpsUtcOffset()
 }
 
 func convertTimestampToTimeObject(ts string) (time.Time, error) {
@@ -320,10 +345,17 @@ func convertTimeObjectToTimestamp(t time.Time) string {
 	return newTimestamp
 }
 
-func calcGPSfromUTC(g *GPSdata) {
+func calcUtcTimeFromGpsTime(g *GPSdata, sentence string) {
+	// Deal with possibility that the gpsUtcOffset ends in D (default offset
+	var cleanOffset string
+	cleanOffset = strings.Replace(g.gpsUtcOffset, "D", "", 1)
+	gpsOffset, _ := strconv.Atoi(cleanOffset)
+
+	correctGpsUtcOffset, _ := strconv.Atoi(getGpsUtcOffset())
+	utcCorrectionForOldGpsUtcOffset := gpsOffset - correctGpsUtcOffset
 
 	location, _ := time.LoadLocation("") // specify UTC
-	utcTime := time.Date(
+	GPRMCutcTime := time.Date(
 		g.year,
 		time.Month(g.month),
 		g.day,
@@ -333,15 +365,31 @@ func calcGPSfromUTC(g *GPSdata) {
 		0,
 		location)
 
-	// Deal with possibility that the gpsUtcOffset ends in D (default offset
-	var cleanOffset string
-	cleanOffset = strings.Replace(g.gpsUtcOffset, "D", "", 1)
-	gpsOffset, _ := strconv.Atoi(cleanOffset)
-	gpsTime := utcTime.Add(-time.Duration(gpsOffset) * time.Second)
+	gpsTime := GPRMCutcTime.Add(-time.Duration(gpsOffset) * time.Second)
+
+	correctedUtcTime := time.Date(
+		g.year,
+		time.Month(g.month),
+		g.day,
+		g.hour,
+		g.minute,
+		g.second+utcCorrectionForOldGpsUtcOffset,
+		0,
+		location)
+
 	g.utcTimestamp = fmt.Sprintf("%4d-%02d-%02dT%02d:%02d:%02d.000000",
-		g.year, g.month, g.day, g.hour, g.minute, g.second)
+		correctedUtcTime.Year(), correctedUtcTime.Month(), correctedUtcTime.Day(),
+		correctedUtcTime.Hour(), correctedUtcTime.Minute(), correctedUtcTime.Second())
+
+	// This timestamp is not used anywhere. We retain it for diagnostic reasons.
 	g.gpsTimestamp = fmt.Sprintf("%4d-%02d-%02dT%02d:%02d:%02d.000000",
 		gpsTime.Year(), gpsTime.Month(), gpsTime.Day(), gpsTime.Hour(), gpsTime.Minute(), gpsTime.Second())
+
+	log.Println(sentence)
+	log.Println("PUBX04 gpsUtcOffset: ", g.gpsUtcOffset)
+	log.Println("gpsTimestamp:: ", g.gpsTimestamp)
+	log.Println("utcTimestamp:: ", g.utcTimestamp)
+
 }
 
 func isChecksumValid(frameAsString string) bool {
