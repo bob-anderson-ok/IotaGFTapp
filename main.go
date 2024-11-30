@@ -26,7 +26,7 @@ import (
 
 const MaxSerialDataLines = 100_000
 
-const Version = "1.3.0"
+const Version = "1.3.1"
 
 const gpsUtcOffset = "18"
 
