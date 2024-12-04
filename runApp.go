@@ -118,8 +118,10 @@ func runApp(myWin *Config) {
 				// When the PUBX04 gpsUtcOffset changes from 16D to 18, it appears that -2 1pps
 				// pulses were lost. We deal with this by only reporting positive lostPulseCount values
 				if lostPulseCount > 0 {
-					showMsg("PPS error !",
-						fmt.Sprintf("\n%d 1pps pulses were lost !!!\n", lostPulseCount), 200, 800)
+					if myWin.captureActive {
+						showMsg("PPS error !",
+							fmt.Sprintf("\n%d 1pps pulses were lost while capture active !!!\n", lostPulseCount), 200, 800)
+					}
 					log.Printf("%d 1pps pulses were lost\n", lostPulseCount)
 					gpsData.nextUnixTime = gpsData.unixTime // catch up so that we can continue testing
 				}
@@ -139,6 +141,7 @@ func runApp(myWin *Config) {
 						if connectToSharpCap() {
 							//Example of asking SharpCap to set exposure time
 							//fmt.Println(getResponse(myWin.SharpCapConn, "set_exp_seconds 0.5"))
+							myWin.captureActive = true
 							getResponse(myWin.SharpCapConn, "start")
 						} else {
 							clearSchedule(myWin)
@@ -169,6 +172,7 @@ func runApp(myWin *Config) {
 						log.Println(fmt.Sprint("Recording ended"))
 						myWin.pastEnd = true
 						needTickMsg = true
+						myWin.captureActive = false
 
 						var sharpCapPath string
 						if connectToSharpCap() {

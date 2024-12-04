@@ -171,7 +171,7 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 		strings.Contains(sentence, "+}") ||
 		strings.Contains(sentence, "!}")
 
-	if pSentence { // process P sentence
+	if pSentence {
 		tickPulse := strings.Contains(sentence, "P}")
 		pType := "P"
 		parts := strings.Split(sentence, " ")
@@ -197,6 +197,10 @@ func parseSentence(sentence, checksum string, gpsInfo *GPSdata) ([]string, error
 
 			onePPSdata.runningTickTime += deltaP
 			onePPSdata.pDelta = append(onePPSdata.pDelta, deltaP)
+
+			log.Printf("%s  cumulative tick count: %9d  deltaP: %d",
+				sentence, onePPSdata.runningTickTime, deltaP) // process P sentence
+
 			if tickPulse {
 				//log.Println("tickPulseUtc: ", gpsInfo.utcTimestamp) // TODO Consider leaving this in
 				//log.Println("tickPulseGps: ", gpsInfo.gpsTimestamp) // TODO Consider leaving this in
@@ -365,7 +369,7 @@ func calcUtcTimeFromGpsTime(g *GPSdata, sentence string) {
 		0,
 		location)
 
-	gpsTime := GPRMCutcTime.Add(-time.Duration(gpsOffset) * time.Second)
+	gpsTime := GPRMCutcTime.Add(time.Duration(gpsOffset) * time.Second)
 
 	correctedUtcTime := time.Date(
 		g.year,

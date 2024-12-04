@@ -130,7 +130,7 @@ func (app *Config) makeUI() {
 	column1.Add(app.gpdtmCheckBox)
 
 	app.pubxCheckBox = widget.NewCheck("$PUBX", func(bool) {})
-	app.pubxCheckBox.SetChecked(true)
+	app.pubxCheckBox.SetChecked(false)
 	column1.Add(app.pubxCheckBox)
 
 	app.pCheckBox = widget.NewCheck("P", func(bool) {})

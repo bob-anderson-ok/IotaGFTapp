@@ -26,7 +26,7 @@ import (
 
 const MaxSerialDataLines = 100_000
 
-const Version = "1.3.3"
+const Version = "1.3.4"
 
 const gpsUtcOffset = "18"
 
@@ -76,6 +76,7 @@ type GPSdata struct {
 
 type Config struct {
 	App                       fyne.App
+	captureActive             bool
 	SharpCapConn              net.Conn
 	SharpCapAvailable         bool
 	flashIntensitySlider      *widget.Slider
